@@ -277,16 +277,11 @@ export class WeChatAdapter implements ChannelAdapter {
       try {
         const resp = await this.apiCall("ilink/bot/getupdates", {
           get_updates_buf: this.syncBuf,
-          base_info: {
-            channel_version: 1,
-            bot_agent: this.botAgent,
-          },
-          timeoutMs: 35_000,
         }) as GetUpdatesResponse;
 
         if (resp.msgs) {
           for (const msg of resp.msgs) {
-            if (msg.message_type === 1 && msg.message_state === 0) {
+            if (msg.message_type === 1 && (msg.message_state === 0 || msg.message_state === 2)) {
               // Only process NEW USER messages
               const event = this.toMessageEvent(msg);
               if (event) {

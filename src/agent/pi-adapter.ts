@@ -1,42 +1,43 @@
-/** Pi Agent Runtime adapter — uses the Pi SDK (createAgentSession, ModelRuntime). */
+/** Pi Agent Runtime adapter — uses the Pi SDK with Pi-native provider config. */
 
 import {
   createAgentSession,
+  createExtensionRuntime,
   ModelRuntime,
   SessionManager,
-  DefaultResourceLoader,
-  getAgentDir,
+  SettingsManager,
+  type ResourceLoader,
   resolveCliModel,
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { AgentAdapter, AgentRequest, AgentResponse } from "../types.js";
+import type { AgentAdapter, AgentRequest, AgentResponse, PiProviderConfig } from "../types.js";
 
 export interface PiAdapterConfig {
-  /** Provider name (e.g. "xfyun-astron"). */
-  provider?: string;
-  /** Model ID (e.g. "astron-code-latest"). */
-  model?: string;
+  /** Pi provider definitions — same format as models.json providers. */
+  providers: Record<string, PiProviderConfig>;
+  /** Default model in "provider/model" format. */
+  defaultModel: string;
   /** Working directory for agent sessions. */
   workspaceDir: string;
-  /** Custom PI_CODING_AGENT_DIR for models.json/auth.json. Defaults to ~/.pi/agent. */
-  piDir?: string;
   /** Thinking level: off, minimal, low, medium, high, xhigh, max. */
   thinkingLevel?: string;
 }
+
+/** Fixed directory for Pi config files. */
+const PI_CONFIG_DIR = join(homedir(), ".myos", "pi");
 
 export class PiAdapter implements AgentAdapter {
   readonly name = "pi";
 
   private modelRuntime!: ModelRuntime;
-  private sessions = new Map<string, AgentSession>(); // sessionId → AgentSession
+  private sessions = new Map<string, AgentSession>();
   private running = new Set<string>();
   private config: PiAdapterConfig;
   private initialized = false;
-
   constructor(config: PiAdapterConfig) {
     this.config = config;
   }
@@ -45,10 +46,13 @@ export class PiAdapter implements AgentAdapter {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    const agentDir = this.config.piDir ?? getAgentDir();
+    // Write models.json + auth.json to ~/.myos/pi/
+    await mkdir(PI_CONFIG_DIR, { recursive: true });
+    await this.writeProviderFiles(PI_CONFIG_DIR);
+
     this.modelRuntime = await ModelRuntime.create({
-      authPath: join(agentDir, "auth.json"),
-      modelsPath: join(agentDir, "models.json"),
+      authPath: join(PI_CONFIG_DIR, "auth.json"),
+      modelsPath: join(PI_CONFIG_DIR, "models.json"),
     });
 
     this.initialized = true;
@@ -57,11 +61,17 @@ export class PiAdapter implements AgentAdapter {
   async run(request: AgentRequest): Promise<AgentResponse> {
     await this.init();
 
-    const session = await this.getOrCreateSession(request.sessionId, request.cwd, request.systemPromptSuffix);
+    let session: AgentSession;
+    try {
+      session = await this.getOrCreateSession(request.sessionId, request.cwd, request.systemPromptSuffix);
+    } catch (err) {
+      process.stderr.write(`[pi] session creation error: ${err}\n`);
+      return { text: "[error — failed to create session]" };
+    }
+
     this.running.add(request.sessionId);
 
     try {
-      // Collect the full text response from streaming events
       const text = await this.collectResponse(session, request.message);
       return { text: text || "[no response]" };
     } finally {
@@ -79,16 +89,29 @@ export class PiAdapter implements AgentAdapter {
     return this.running.has(sessionId);
   }
 
-  /** Shut down all Pi sessions. */
   async shutdown(): Promise<void> {
-    for (const [id, session] of this.sessions) {
+    for (const [, session] of this.sessions) {
       session.dispose();
-      this.sessions.delete(id);
     }
+    this.sessions.clear();
     this.running.clear();
   }
 
   // ─── Private ─────────────────────────────────────────────────────
+
+  /** Write models.json and auth.json from config providers. */
+  private async writeProviderFiles(dir: string): Promise<void> {
+    const modelsJson = { providers: this.config.providers };
+
+    // Build auth.json: extract apiKey from each provider
+    const authJson: Record<string, { type: string; key: string }> = {};
+    for (const [providerId, provider] of Object.entries(this.config.providers)) {
+      authJson[providerId] = { type: "api_key", key: provider.apiKey };
+    }
+
+    await writeFile(join(dir, "models.json"), JSON.stringify(modelsJson, null, 2), "utf8");
+    await writeFile(join(dir, "auth.json"), JSON.stringify(authJson, null, 2), "utf8");
+  }
 
   private async getOrCreateSession(
     sessionId: string,
@@ -101,27 +124,39 @@ export class PiAdapter implements AgentAdapter {
     const workDir = cwd ?? join(this.config.workspaceDir, sessionId);
     await mkdir(workDir, { recursive: true });
 
-    // Resolve model from provider/model config
     const model = this.resolveModel();
 
-    const agentDir = this.config.piDir ?? getAgentDir();
-    const loader = new DefaultResourceLoader({
-      cwd: workDir,
-      agentDir,
-      systemPromptOverride: (base: string | undefined) => {
-        return (base ?? "") + (systemPromptSuffix ?? "");
-      },
-    });
-    await loader.reload();
+    const systemPrompt = `You are a personal AI assistant running in MyOS.
+You have access to file and shell tools (read, bash, edit, write, grep, find, ls).
+Respond concisely and helpfully. Your working directory is the user's workspace.
+${systemPromptSuffix ?? ""}`;
+
+    const resourceLoader: ResourceLoader = {
+      getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+      getPrompts: () => ({ prompts: [], diagnostics: [] }),
+      getThemes: () => ({ themes: [], diagnostics: [] }),
+      getAgentsFiles: () => ({ agentsFiles: [] }),
+      getSystemPrompt: () => systemPrompt,
+      getAppendSystemPrompt: () => [],
+      extendResources: () => {},
+      reload: async () => {},
+    };
 
     const sessionManager = SessionManager.inMemory(workDir);
+    const settingsManager = SettingsManager.inMemory({
+      compaction: { enabled: false },
+      retry: { enabled: true, maxRetries: 2 },
+    });
 
     const { session } = await createAgentSession({
       cwd: workDir,
+      agentDir: PI_CONFIG_DIR,
       model: model ?? undefined,
       modelRuntime: this.modelRuntime,
       sessionManager,
-      resourceLoader: loader,
+      settingsManager,
+      resourceLoader,
       tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
     });
 
@@ -130,12 +165,8 @@ export class PiAdapter implements AgentAdapter {
   }
 
   private resolveModel() {
-    if (!this.config.provider && !this.config.model) return undefined;
-
     const cliModel = resolveCliModel({
-      cliModel: this.config.provider && this.config.model
-        ? `${this.config.provider}/${this.config.model}`
-        : this.config.model ?? this.config.provider,
+      cliModel: this.config.defaultModel,
       modelRuntime: this.modelRuntime,
     });
 
@@ -173,7 +204,6 @@ export class PiAdapter implements AgentAdapter {
         }
       });
 
-      // Send the prompt — it resolves when the full run finishes
       session.prompt(message).catch((err: unknown) => {
         if (!settled) {
           settled = true;

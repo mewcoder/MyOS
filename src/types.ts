@@ -11,10 +11,9 @@ export interface MessageEvent {
 }
 
 export interface Attachment {
-  type: "image" | "file" | "voice" | "video";
-  filename: string;
-  data: Buffer;
-  mimeType?: string;
+  type: "image" | "voice" | "file" | "video";
+  url: string;
+  name?: string;
 }
 
 /** A response from the Agent Runtime back to the Gateway. */
@@ -25,47 +24,33 @@ export interface AgentResponse {
 
 export interface OutboundAttachment {
   type: "image" | "file";
-  filename: string;
-  data: Buffer;
-  mimeType?: string;
+  url: string;
+  name?: string;
 }
 
 /** Channel adapter interface — each channel (WeChat, Telegram, etc.) implements this. */
 export interface ChannelAdapter {
   readonly name: string;
-
-  /** Start listening for inbound messages. Calls `onMessage` for each. */
   start(onMessage: (event: MessageEvent) => void): Promise<void>;
-
-  /** Stop listening. */
   stop(): Promise<void>;
-
-  /** Send a response back through this channel to a specific user. */
   send(userId: string, response: AgentResponse): Promise<void>;
-
-  /** Send a typing indicator (best-effort). */
   sendTyping?(userId: string): Promise<void>;
 }
 
 /** Agent Runtime adapter interface — Pi implements this. */
 export interface AgentAdapter {
-  /** Run a message through the agent, returning the full response. */
+  readonly name: string;
   run(request: AgentRequest): Promise<AgentResponse>;
-
-  /** Abort the current run for a session. */
   abort(sessionId: string): void;
-
-  /** Check if a session has an active run. */
   isRunning(sessionId: string): boolean;
+  shutdown(): Promise<void>;
 }
 
 export interface AgentRequest {
   sessionId: string;
   message: string;
-  /** Channel-specific context injected into the system prompt. */
-  systemPromptSuffix?: string;
-  /** Working directory for the agent. */
   cwd?: string;
+  systemPromptSuffix?: string;
 }
 
 /** Session record — maps a channel user to a Pi session. */
@@ -73,9 +58,9 @@ export interface Session {
   id: string;
   channel: string;
   userId: string;
-  piSessionId: string;
+  agentSessionId: string;
   createdAt: number;
-  lastActiveAt: number;
+  updatedAt: number;
 }
 
 /** Gateway configuration. */
@@ -87,22 +72,70 @@ export interface GatewayConfig {
 
 export interface ChannelConfig {
   type: string;
-  enabled: boolean;
+  enabled?: boolean;
   [key: string]: unknown;
 }
 
+/**
+ * Agent configuration.
+ *
+ * `providers` uses the same structure as Pi's `models.json` providers,
+ * so it's written directly to `~/.myos/pi/models.json` at startup.
+ * `auth.json` is auto-generated from `providers.*.apiKey`.
+ */
 export interface AgentConfig {
   type: "pi";
-  /** LLM provider name (e.g. "xfyun-astron"). */
-  provider?: string;
-  /** LLM model ID (e.g. "astron-code-latest"). */
-  model?: string;
+  /** Pi provider definitions — same format as models.json providers. */
+  providers: Record<string, PiProviderConfig>;
+  /** Default model in "provider/model" format. */
+  defaultModel: string;
   /** Working directory for agent sessions. */
   workspaceDir?: string;
-  /** Custom PI_CODING_AGENT_DIR for models.json/auth.json. */
-  piDir?: string;
   /** Thinking level: off, minimal, low, medium, high, xhigh, max. */
   thinkingLevel?: string;
+}
+
+/**
+ * Pi provider configuration — mirrors Pi SDK's models.json provider format.
+ *
+ * @example
+ * ```json
+ * {
+ *   "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+ *   "api": "openai-completions",
+ *   "apiKey": "your-api-key",
+ *   "authHeader": true,
+ *   "models": [{
+ *     "id": "astron-code-latest",
+ *     "name": "Astron Code (讯飞)",
+ *     "input": ["text"],
+ *     "contextWindow": 200000,
+ *     "maxTokens": 16384,
+ *     "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+ *   }]
+ * }
+ * ```
+ */
+export interface PiProviderConfig {
+  baseUrl: string;
+  api?: string;
+  apiKey: string;
+  authHeader?: boolean;
+  compat?: Record<string, unknown>;
+  models: PiModelConfig[];
+  [key: string]: unknown;
+}
+
+/** Pi model definition — mirrors Pi SDK's models.json model format. */
+export interface PiModelConfig {
+  id: string;
+  name?: string;
+  input?: string[];
+  contextWindow?: number;
+  maxTokens?: number;
+  reasoning?: boolean;
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+  [key: string]: unknown;
 }
 
 export interface SessionConfig {

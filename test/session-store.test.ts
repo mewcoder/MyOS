@@ -23,7 +23,7 @@ describe("SessionStore", () => {
 
     expect(session.channel).toBe("wechat");
     expect(session.userId).toBe("user1");
-    expect(session.piSessionId).toMatch(/^pi-/);
+    expect(session.agentSessionId).toMatch(/^pi-/);
     expect(session.createdAt).toBeGreaterThan(0);
   });
 
@@ -33,7 +33,7 @@ describe("SessionStore", () => {
     const s2 = await store.getOrCreate("wechat", "user1");
 
     expect(s1.id).toBe(s2.id);
-    expect(s1.piSessionId).toBe(s2.piSessionId);
+    expect(s1.agentSessionId).toBe(s2.agentSessionId);
   });
 
   it("creates different sessions for different users", async () => {
@@ -62,29 +62,11 @@ describe("SessionStore", () => {
 
     expect(loaded).toBeDefined();
     expect(loaded!.id).toBe(created.id);
-    expect(loaded!.piSessionId).toBe(created.piSessionId);
-  });
-
-  it("updates piSessionId", async () => {
-    const store = await SessionStore.create(testDir);
-    const session = await store.getOrCreate("wechat", "user1");
-    const oldPiId = session.piSessionId;
-
-    await store.updatePiSessionId("wechat", "user1", "pi-new-session-id");
-    const updated = store.get("wechat", "user1");
-
-    expect(updated!.piSessionId).toBe("pi-new-session-id");
-    expect(updated!.piSessionId).not.toBe(oldPiId);
+    expect(loaded!.agentSessionId).toBe(created.agentSessionId);
   });
 
   it("get returns undefined for unknown user", async () => {
     const store = await SessionStore.create(testDir);
     expect(store.get("wechat", "unknown")).toBeUndefined();
-  });
-
-  it("updatePiSessionId is a no-op for unknown user", async () => {
-    const store = await SessionStore.create(testDir);
-    // Should not throw
-    await store.updatePiSessionId("wechat", "unknown", "pi-xxx");
   });
 });

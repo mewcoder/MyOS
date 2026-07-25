@@ -26,7 +26,7 @@ export class SessionStore {
     const key = `${channel}:${userId}`;
     const existing = this.sessions.get(key);
     if (existing) {
-      existing.lastActiveAt = Date.now();
+      existing.updatedAt = Date.now();
       this.dirty = true;
       return existing;
     }
@@ -35,9 +35,9 @@ export class SessionStore {
       id: randomUUID(),
       channel,
       userId,
-      piSessionId: `pi-${randomUUID()}`,
+      agentSessionId: `pi-${randomUUID()}`,
       createdAt: Date.now(),
-      lastActiveAt: Date.now(),
+      updatedAt: Date.now(),
     };
     this.sessions.set(key, session);
     this.dirty = true;
@@ -48,18 +48,6 @@ export class SessionStore {
   /** Get an existing session, if any. */
   get(channel: string, userId: string): Session | undefined {
     return this.sessions.get(`${channel}:${userId}`);
-  }
-
-  /** Update a session's Pi session ID (e.g. after Pi creates a new session). */
-  async updatePiSessionId(channel: string, userId: string, piSessionId: string): Promise<void> {
-    const key = `${channel}:${userId}`;
-    const session = this.sessions.get(key);
-    if (session) {
-      session.piSessionId = piSessionId;
-      session.lastActiveAt = Date.now();
-      this.dirty = true;
-      await this.flush();
-    }
   }
 
   private async load(): Promise<void> {

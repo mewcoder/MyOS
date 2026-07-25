@@ -39,10 +39,9 @@ export class Gateway {
     await mkdir(workspaceDir, { recursive: true });
 
     const agent = new PiAdapter({
-      provider: config.agent.provider,
-      model: config.agent.model,
+      providers: config.agent.providers,
+      defaultModel: config.agent.defaultModel,
       workspaceDir,
-      piDir: config.agent.piDir,
       thinkingLevel: config.agent.thinkingLevel,
     });
 
@@ -109,7 +108,7 @@ export class Gateway {
     // 4. Run through agent
     try {
       const response = await this.agent.run({
-        sessionId: session.piSessionId,
+        sessionId: session.agentSessionId,
         message: event.content,
         systemPromptSuffix,
       });

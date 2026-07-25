@@ -23,10 +23,26 @@ async function loadConfig(): Promise<GatewayConfig> {
       ],
       agent: {
         type: "pi",
-        provider: "xfyun-astron",
-        model: "astron-code-latest",
+        providers: {
+          "xfyun-astron": {
+            baseUrl: "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+            api: "openai-completions",
+            apiKey: "",
+            authHeader: true,
+            models: [
+              {
+                id: "astron-code-latest",
+                name: "Astron Code (讯飞)",
+                input: ["text"],
+                contextWindow: 200000,
+                maxTokens: 16384,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+            ],
+          },
+        },
+        defaultModel: "xfyun-astron/astron-code-latest",
         workspaceDir: join(homedir(), ".myos", "workspace"),
-        piDir: join(homedir(), ".pi", "agent"),
       },
       session: {
         dir: join(homedir(), ".myos", "sessions"),
