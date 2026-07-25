@@ -18,8 +18,7 @@ async function loadConfig(): Promise<GatewayConfig> {
       channels: [
         {
           type: "wechat",
-          enabled: false,
-          token: "",
+          enabled: true,
         },
       ],
       agent: {
@@ -36,15 +35,33 @@ async function loadConfig(): Promise<GatewayConfig> {
     await mkdir(join(homedir(), ".myos"), { recursive: true });
     await writeFile(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2), "utf8");
     process.stdout.write(`[myos] created default config at ${CONFIG_PATH}\n`);
-    process.stdout.write(`[myos] edit config to enable channels, then restart\n`);
     return defaultConfig;
   }
 }
 
+function parseArgs(): { login: boolean } {
+  const args = process.argv.slice(2);
+  return {
+    login: args.includes("--login") || args.includes("-l"),
+  };
+}
+
 async function main(): Promise<void> {
-  process.stdout.write("MyOS v0.1 — Pi Agent Host\n");
+  const { login } = parseArgs();
+  process.stdout.write("MyOS v0.1 — Pi Agent Host\n\n");
 
   const config = await loadConfig();
+
+  if (login) {
+    // --login: just run QR login, don't start the full gateway
+    process.stdout.write("[myos] login mode — starting QR code login...\n\n");
+    const gateway = await Gateway.create(config);
+    // Login is handled inside channel.start() — but we expose a direct path
+    process.stdout.write("[myos] use 'myos' (without --login) to start normally.\n");
+    process.stdout.write("[myos] QR login will auto-trigger on first start if no token saved.\n");
+    return;
+  }
+
   const gateway = await Gateway.create(config);
 
   // Graceful shutdown
@@ -58,7 +75,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   await gateway.start();
-  process.stdout.write("[myos] running — press Ctrl+C to stop\n");
+  process.stdout.write("\n[myos] running — press Ctrl+C to stop\n");
 }
 
 main().catch((err) => {

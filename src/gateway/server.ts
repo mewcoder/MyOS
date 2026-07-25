@@ -142,10 +142,7 @@ Your working directory is the user's workspace.`;
     switch (config.type) {
       case "wechat": {
         const wechatConfig = config as unknown as WeChatConfig;
-        if (!wechatConfig.token) {
-          process.stderr.write(`[gateway] wechat channel missing token, skipping\n`);
-          return null;
-        }
+        // Token is optional — QR login will be triggered on start if missing
         return new WeChatAdapter(wechatConfig, dataDir);
       }
       default:
