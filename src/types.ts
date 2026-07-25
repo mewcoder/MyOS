@@ -93,16 +93,16 @@ export interface ChannelConfig {
 
 export interface AgentConfig {
   type: "pi";
-  /** Path to pi binary. Defaults to "pi". */
-  binary?: string;
-  /** LLM provider name. */
+  /** LLM provider name (e.g. "xfyun-astron"). */
   provider?: string;
-  /** LLM model pattern. */
+  /** LLM model ID (e.g. "astron-code-latest"). */
   model?: string;
   /** Working directory for agent sessions. */
   workspaceDir?: string;
-  /** Custom PI_CODING_AGENT_DIR for models.json/settings.json. */
+  /** Custom PI_CODING_AGENT_DIR for models.json/auth.json. */
   piDir?: string;
+  /** Thinking level: off, minimal, low, medium, high, xhigh, max. */
+  thinkingLevel?: string;
 }
 
 export interface SessionConfig {

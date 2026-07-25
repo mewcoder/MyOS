@@ -23,9 +23,10 @@ async function loadConfig(): Promise<GatewayConfig> {
       ],
       agent: {
         type: "pi",
-        provider: undefined,
-        model: undefined,
+        provider: "xfyun-astron",
+        model: "astron-code-latest",
         workspaceDir: join(homedir(), ".myos", "workspace"),
+        piDir: join(homedir(), ".pi", "agent"),
       },
       session: {
         dir: join(homedir(), ".myos", "sessions"),

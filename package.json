@@ -12,16 +12,20 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.82.0",
     "qrcode-terminal": "^0.12.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/qrcode-terminal": "^0.12.2",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=22.0.0"

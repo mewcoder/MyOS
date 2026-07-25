@@ -39,11 +39,11 @@ export class Gateway {
     await mkdir(workspaceDir, { recursive: true });
 
     const agent = new PiAdapter({
-      binary: config.agent.binary,
       provider: config.agent.provider,
       model: config.agent.model,
       workspaceDir,
       piDir: config.agent.piDir,
+      thinkingLevel: config.agent.thinkingLevel,
     });
 
     const gateway = new Gateway(config, agent, sessions);
