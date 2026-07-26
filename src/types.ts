@@ -28,10 +28,13 @@ export interface OutboundAttachment {
   name?: string;
 }
 
-/** Channel adapter interface — each channel (WeChat, Telegram, etc.) implements this. */
+/** Channel adapter interface — each channel (WeChat, Telegram, etc.) implements this.
+ *
+ * If `onMessage` returns a promise, the channel may await it before
+ * acknowledging/persisting its delivery cursor (at-least-once delivery). */
 export interface ChannelAdapter {
   readonly name: string;
-  start(onMessage: (event: MessageEvent) => void): Promise<void>;
+  start(onMessage: (event: MessageEvent) => void | Promise<void>): Promise<void>;
   stop(): Promise<void>;
   send(userId: string, response: AgentResponse): Promise<void>;
   sendTyping?(userId: string): Promise<void>;
@@ -43,6 +46,8 @@ export interface AgentAdapter {
   run(request: AgentRequest): Promise<AgentResponse>;
   abort(sessionId: string): void;
   isRunning(sessionId: string): boolean;
+  /** Abort and free a single session's resources (used by /new). */
+  disposeSession?(sessionId: string): Promise<void>;
   shutdown(): Promise<void>;
 }
 

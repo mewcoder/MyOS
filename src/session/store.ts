@@ -1,6 +1,6 @@
 /** Session store — simple file-based persistence. */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Session } from "../types.js";
@@ -9,6 +9,7 @@ export class SessionStore {
   private sessions = new Map<string, Session>(); // key: `${channel}:${userId}`
   private dirty = false;
   private filePath: string;
+  private flushChain: Promise<void> = Promise.resolve();
 
   private constructor(dir: string) {
     this.filePath = join(dir, "sessions.json");
@@ -28,6 +29,7 @@ export class SessionStore {
     if (existing) {
       existing.updatedAt = Date.now();
       this.dirty = true;
+      await this.flush();
       return existing;
     }
 
@@ -50,6 +52,22 @@ export class SessionStore {
     return this.sessions.get(`${channel}:${userId}`);
   }
 
+  /** Replace the session with a fresh one (new agent session, empty context). */
+  async reset(channel: string, userId: string): Promise<Session> {
+    const session: Session = {
+      id: randomUUID(),
+      channel,
+      userId,
+      agentSessionId: `pi-${randomUUID()}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.sessions.set(`${channel}:${userId}`, session);
+    this.dirty = true;
+    await this.flush();
+    return session;
+  }
+
   private async load(): Promise<void> {
     try {
       const data = await readFile(this.filePath, "utf8");
@@ -62,10 +80,19 @@ export class SessionStore {
     }
   }
 
-  private async flush(): Promise<void> {
-    if (!this.dirty) return;
-    this.dirty = false;
-    const entries = [...this.sessions.values()];
-    await writeFile(this.filePath, JSON.stringify(entries, null, 2), "utf8");
+  /** Serialized: concurrent flushes would interleave writes to the same tmp file. */
+  private flush(): Promise<void> {
+    const run = this.flushChain.then(async () => {
+      if (!this.dirty) return;
+      this.dirty = false;
+      const entries = [...this.sessions.values()];
+      // Atomic write: a crash mid-write must not corrupt sessions.json
+      const tmpPath = `${this.filePath}.tmp`;
+      await writeFile(tmpPath, JSON.stringify(entries, null, 2), "utf8");
+      await rename(tmpPath, this.filePath);
+    });
+    // Callers see the error, but the chain itself stays usable after a failure
+    this.flushChain = run.catch(() => {});
+    return run;
   }
 }

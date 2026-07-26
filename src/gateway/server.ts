@@ -13,6 +13,17 @@ import { WeChatAdapter, type WeChatConfig } from "../channels/wechat/adapter.js"
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { logger, preview } from "../log.js";
+import { SESSION_STORE_DIR, WORKSPACE_DIR, channelDataDir } from "../paths.js";
+import { InboxService, parseCapture } from "../inbox/service.js";
+
+/** Expand a leading `~` to the user's home directory. */
+function expandHome(path: string | undefined): string | undefined {
+  if (!path) return path;
+  if (path === "~") return homedir();
+  if (path.startsWith("~/")) return join(homedir(), path.slice(2));
+  return path;
+}
 
 export class Gateway {
   private channels = new Map<string, ChannelAdapter>();
@@ -20,6 +31,8 @@ export class Gateway {
   private sessions: SessionStore;
   private config: GatewayConfig;
   private running = false;
+  private queues = new Map<string, Promise<void>>(); // key: `${channel}:${userId}`
+  private inbox: InboxService;
 
   private constructor(
     config: GatewayConfig,
@@ -29,13 +42,17 @@ export class Gateway {
     this.config = config;
     this.agent = agent;
     this.sessions = sessions;
+    this.inbox = new InboxService({
+      providers: config.agent.providers,
+      defaultModel: config.agent.defaultModel,
+    });
   }
 
   static async create(config: GatewayConfig): Promise<Gateway> {
-    const sessionDir = config.session.dir ?? join(homedir(), ".myos", "sessions");
+    const sessionDir = expandHome(config.session.dir) ?? SESSION_STORE_DIR;
     const sessions = await SessionStore.create(sessionDir);
 
-    const workspaceDir = config.agent.workspaceDir ?? join(homedir(), ".myos", "workspace");
+    const workspaceDir = expandHome(config.agent.workspaceDir) ?? WORKSPACE_DIR;
     await mkdir(workspaceDir, { recursive: true });
 
     const agent = new PiAdapter({
@@ -74,6 +91,7 @@ export class Gateway {
 
     await Promise.all(startPromises);
     process.stdout.write(`[gateway] all channels started\n`);
+    logger.log("gateway_started", { channels: [...this.channels.keys()] });
   }
 
   /** Stop all channels and shut down the agent. */
@@ -87,25 +105,77 @@ export class Gateway {
       await this.agent.shutdown();
     }
     process.stdout.write(`[gateway] stopped\n`);
+    logger.log("gateway_stopped");
   }
 
   // ─── Core message handling ───────────────────────────────────────
 
-  private async handleMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
+  /** Serialize message processing per channel:user — concurrent prompts to the
+   *  same Pi session would interleave their streamed responses.
+   *
+   *  Slash commands bypass the queue: /stop must act while the agent is busy,
+   *  not after the running task finishes. */
+  private handleMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
+    if (event.content.startsWith("/")) {
+      return this.handleCommand(event, channel).catch((err) => {
+        process.stderr.write(`[gateway] command error: ${err}\n`);
+      });
+    }
+
+    // A message that is essentially just a link is an inbox capture, not a
+    // question about the link. Capture bypasses the agent queue — it never
+    // touches the Pi session, and archiving shouldn't wait on a running chat.
+    const capture = parseCapture(event.content);
+    if (capture && (capture.note?.length ?? 0) <= 40) {
+      return this.handleCapture(event, channel, capture.url, capture.note).catch((err) => {
+        process.stderr.write(`[gateway] capture error: ${err}\n`);
+      });
+    }
+
+    const key = `${event.channel}:${event.userId}`;
+    const prev = this.queues.get(key) ?? Promise.resolve();
+    const next = prev
+      .then(() => this.processMessage(event, channel))
+      .catch((err) => {
+        process.stderr.write(`[gateway] message handling error: ${err}\n`);
+        logger.log("message_handling_error", {
+          channel: event.channel,
+          userId: event.userId,
+          msgId: event.id,
+          error: String(err),
+        });
+      });
+    this.queues.set(key, next);
+    next.finally(() => {
+      if (this.queues.get(key) === next) this.queues.delete(key);
+    });
+    return next;
+  }
+
+  private async processMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
     process.stdout.write(`[gateway] ${event.channel}:${event.userId} → ${event.content.slice(0, 80)}\n`);
+    logger.log("message_received", {
+      channel: event.channel,
+      userId: event.userId,
+      msgId: event.id,
+      chars: event.content.length,
+      preview: preview(event.content),
+    });
 
     // 1. Resolve session
     const session = await this.sessions.getOrCreate(event.channel, event.userId);
 
-    // 2. Send typing indicator
+    // 2. Send typing indicator — awaited so it can't land AFTER the final
+    //    reply and leave a stuck "typing…" state (it's best-effort inside)
     if (channel.sendTyping) {
-      channel.sendTyping(event.userId).catch(() => {});
+      await channel.sendTyping(event.userId).catch(() => {});
     }
 
     // 3. Build system prompt suffix with channel context
     const systemPromptSuffix = this.buildSystemPromptSuffix(event);
 
     // 4. Run through agent
+    const startedAt = Date.now();
     try {
       const response = await this.agent.run({
         sessionId: session.agentSessionId,
@@ -116,11 +186,162 @@ export class Gateway {
       // 5. Send response back through channel
       await channel.send(event.userId, response);
       process.stdout.write(`[gateway] ${event.channel}:${event.userId} ← ${response.text.slice(0, 80)}\n`);
+      logger.log("reply_sent", {
+        channel: event.channel,
+        userId: event.userId,
+        msgId: event.id,
+        sessionId: session.agentSessionId,
+        durationMs: Date.now() - startedAt,
+        chars: response.text.length,
+        preview: preview(response.text),
+      });
     } catch (err) {
       process.stderr.write(`[gateway] agent error: ${err}\n`);
+      logger.log("agent_error", {
+        channel: event.channel,
+        userId: event.userId,
+        msgId: event.id,
+        sessionId: session.agentSessionId,
+        durationMs: Date.now() - startedAt,
+        error: String(err),
+      });
       await channel.send(event.userId, {
         text: "抱歉，处理消息时出错了。请稍后重试。",
       });
+    }
+  }
+
+  // ─── Slash commands ──────────────────────────────────────────────
+
+  private static readonly HELP_TEXT = [
+    "可用命令：",
+    "/help — 显示本帮助",
+    "/new — 重置会话，清空上下文重新开始（同 /reset）",
+    "/stop — 中断当前正在执行的任务",
+    "/status — 查看会话状态",
+    "/save <链接> — 强制收藏该链接",
+    "/inbox — 查看收藏统计与最近条目",
+    "",
+    "直接发链接即可自动收藏；其他消息发给 AI 助手。",
+  ].join("\n");
+
+  /** Fetch, archive and acknowledge a captured link. */
+  private async handleCapture(
+    event: MessageEvent,
+    channel: ChannelAdapter,
+    url: string,
+    note?: string,
+  ): Promise<void> {
+    process.stdout.write(`[gateway] ${event.channel}:${event.userId} → capture ${url}\n`);
+    await channel.send(event.userId, { text: "📥 正在抓取…" });
+
+    const result = await this.inbox.capture(url, note);
+
+    if (result.status === "duplicate") {
+      await channel.send(event.userId, {
+        text: `📎 已经收藏过了：《${result.item!.title}》\n收藏于 ${result.item!.captured.slice(0, 10)}`,
+      });
+      return;
+    }
+
+    if (result.status === "failed") {
+      await channel.send(event.userId, { text: `❌ 抓取失败：${result.error}` });
+      return;
+    }
+
+    const item = result.item!;
+    const lines = [`✅ 已收藏《${item.title}》`];
+    if (item.author) lines.push(`作者：${item.author}`);
+    if (item.summary) lines.push("", item.summary);
+    if (item.tags.length) lines.push("", `🏷 ${item.tags.join(" / ")}`);
+    if (!result.pushed) lines.push("", "（已存本地，尚未推送到远程）");
+    await channel.send(event.userId, { text: lines.join("\n") });
+  }
+
+  private async handleCommand(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
+    const command = event.content.slice(1).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+    process.stdout.write(`[gateway] ${event.channel}:${event.userId} → command /${command}\n`);
+    logger.log("command", { channel: event.channel, userId: event.userId, command });
+
+    const reply = async (text: string) => {
+      await channel.send(event.userId, { text });
+    };
+
+    switch (command) {
+      case "help":
+        await reply(Gateway.HELP_TEXT);
+        return;
+
+      case "new":
+      case "reset": {
+        const existing = this.sessions.get(event.channel, event.userId);
+        if (existing && this.agent.disposeSession) {
+          await this.agent.disposeSession(existing.agentSessionId);
+        }
+        await this.sessions.reset(event.channel, event.userId);
+        await reply("✅ 会话已重置，上下文已清空。");
+        return;
+      }
+
+      case "stop": {
+        const existing = this.sessions.get(event.channel, event.userId);
+        if (existing && this.agent.isRunning(existing.agentSessionId)) {
+          this.agent.abort(existing.agentSessionId);
+          await reply("⏹ 已请求中断当前任务。");
+        } else {
+          await reply("当前没有正在运行的任务。");
+        }
+        return;
+      }
+
+      case "status": {
+        const existing = this.sessions.get(event.channel, event.userId);
+        if (!existing) {
+          await reply(`模型: ${this.config.agent.defaultModel}\n会话: 尚未创建（发送任意消息开始）`);
+          return;
+        }
+        const running = this.agent.isRunning(existing.agentSessionId);
+        const created = new Date(existing.createdAt).toLocaleString("zh-CN");
+        await reply(
+          [
+            `模型: ${this.config.agent.defaultModel}`,
+            `会话: ${existing.agentSessionId}`,
+            `创建时间: ${created}`,
+            `状态: ${running ? "运行中" : "空闲"}`,
+          ].join("\n"),
+        );
+        return;
+      }
+
+      case "save": {
+        const capture = parseCapture(event.content);
+        if (!capture) {
+          await reply("用法：/save <链接>");
+          return;
+        }
+        await this.handleCapture(event, channel, capture.url, capture.note?.replace(/^\/save\s*/, ""));
+        return;
+      }
+
+      case "inbox": {
+        const stats = await this.inbox.stats();
+        if (stats.total === 0) {
+          await reply("收藏夹还是空的 —— 直接发一条文章链接就能收藏。");
+          return;
+        }
+        const lines = [
+          `📚 共 ${stats.total} 篇，本周（${stats.week}）${stats.thisWeek} 篇`,
+          "",
+          "最近收藏：",
+          ...stats.recent.map((i) => `· ${i.title}`),
+        ];
+        await reply(lines.join("\n"));
+        return;
+      }
+
+      default:
+        await reply(`未知命令 /${command}，发送 /help 查看可用命令。`);
+        return;
     }
   }
 
@@ -130,13 +351,15 @@ export class Gateway {
 You are a personal AI assistant running in MyOS.
 The user is messaging you via ${event.channel}.
 Respond concisely and helpfully. You have access to file and shell tools.
-Your working directory is the user's workspace.`;
+Your working directory is the user's workspace.
+MyOS handles slash commands (/help, /new, /stop, /status) before they reach you —
+if the user asks what commands exist, tell them to send /help.`;
   }
 
   // ─── Channel factory ─────────────────────────────────────────────
 
   private createChannelAdapter(config: { type: string; [key: string]: unknown }): ChannelAdapter | null {
-    const dataDir = join(homedir(), ".myos", "data", config.type);
+    const dataDir = channelDataDir(config.type);
 
     switch (config.type) {
       case "wechat": {

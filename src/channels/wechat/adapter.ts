@@ -1,9 +1,10 @@
 /** WeChat channel adapter — connects via iLink Bot API (long-polling) with QR code login. */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import qrcode from "qrcode-terminal";
+import { logger } from "../../log.js";
 import type { ChannelAdapter, MessageEvent, AgentResponse } from "../../types.js";
 
 // ─── iLink Bot API types ───────────────────────────────────────────
@@ -86,6 +87,7 @@ export class WeChatAdapter implements ChannelAdapter {
   private syncFilePath: string;
   private tokenFilePath: string;
   private dataDir: string;
+  private processedMsgIds = new Set<number>(); // dedup by message_id
 
   constructor(config: WeChatConfig, dataDir: string) {
     this.baseUrl = config.baseUrl ?? "https://ilinkai.weixin.qq.com";
@@ -127,6 +129,7 @@ export class WeChatAdapter implements ChannelAdapter {
         this.token = result.bot_token;
         await this.saveToken();
         process.stdout.write(`[wechat] 登录成功！token 已保存\n`);
+        logger.log("wechat_login_success", { userId: result.ilink_user_id });
         if (result.ilink_user_id) {
           process.stdout.write(`[wechat] 绑定用户: ${result.ilink_user_id}\n`);
         }
@@ -208,7 +211,7 @@ export class WeChatAdapter implements ChannelAdapter {
 
   // ─── Channel lifecycle ───────────────────────────────────────────
 
-  async start(onMessage: (event: MessageEvent) => void): Promise<void> {
+  async start(onMessage: (event: MessageEvent) => void | Promise<void>): Promise<void> {
     await mkdir(this.dataDir, { recursive: true });
 
     // Load persisted token if not in config
@@ -216,8 +219,16 @@ export class WeChatAdapter implements ChannelAdapter {
       await this.loadToken();
     }
 
-    // If still no token, trigger QR login
+    // If still no token, trigger QR login — but only when someone can actually
+    // scan the QR code. In a daemon (stdout is a log file) this would print QR
+    // codes nobody sees, block ~10 minutes, throw, and crash-loop under
+    // launchd/systemd KeepAlive.
     if (!this.token) {
+      if (!process.stdout.isTTY) {
+        throw new Error(
+          "[wechat] 未登录（无 bot token）且当前为非交互环境 — 请先在终端运行 'myos --login' 扫码登录",
+        );
+      }
       await this.login();
       if (!this.token) {
         throw new Error("[wechat] 登录未完成，无法启动");
@@ -269,7 +280,7 @@ export class WeChatAdapter implements ChannelAdapter {
 
   // ─── Long-poll loop ──────────────────────────────────────────────
 
-  private async poll(onMessage: (event: MessageEvent) => void): Promise<void> {
+  private async poll(onMessage: (event: MessageEvent) => void | Promise<void>): Promise<void> {
     const signal = this.abortController?.signal;
     if (!signal) return;
 
@@ -279,20 +290,49 @@ export class WeChatAdapter implements ChannelAdapter {
           get_updates_buf: this.syncBuf,
         }) as GetUpdatesResponse;
 
+        // The API signals errors in-body: HTTP 200 with nonzero ret carries no
+        // msgs and no cursor — without this check that would spin a hot loop.
+        if (resp.ret) {
+          throw new Error(`getupdates returned ret=${resp.ret}`);
+        }
+
+        const handled: Promise<void>[] = [];
         if (resp.msgs) {
           for (const msg of resp.msgs) {
-            if (msg.message_type === 1 && (msg.message_state === 0 || msg.message_state === 2)) {
-              // Only process NEW USER messages
+            // Process USER messages (type=1) — both NEW (state=0) and FINISH (state=2).
+            // The iLink API may deliver messages with state=2 on first poll, so we can't
+            // rely on state=0 alone. Dedup by message_id prevents duplicate replies.
+            if (msg.message_type === 1) {
+              const msgId = msg.message_id ?? 0;
+              if (msgId && this.processedMsgIds.has(msgId)) {
+                continue; // Already processed
+              }
+              if (msgId) {
+                this.processedMsgIds.add(msgId);
+                // Prevent unbounded growth — keep last 500 IDs
+                if (this.processedMsgIds.size > 500) {
+                  const first = this.processedMsgIds.values().next().value;
+                  if (first !== undefined) this.processedMsgIds.delete(first);
+                }
+              }
               const event = this.toMessageEvent(msg);
               if (event) {
                 // Store context token for outbound echo
                 if (msg.context_token && msg.from_user_id) {
                   this.contextTokens.set(msg.from_user_id, msg.context_token);
                 }
-                onMessage(event);
+                const result = onMessage(event);
+                if (result) handled.push(result);
               }
             }
           }
+        }
+
+        // Wait for the batch to be fully handled before advancing the cursor —
+        // persisting it earlier means a crash mid-processing silently drops
+        // the in-flight messages on restart.
+        if (handled.length) {
+          await Promise.allSettled(handled);
         }
 
         // Persist sync cursor
@@ -303,6 +343,7 @@ export class WeChatAdapter implements ChannelAdapter {
       } catch (err) {
         if (signal.aborted) break;
         process.stderr.write(`[wechat] poll error: ${err}\n`);
+        logger.log("wechat_poll_error", { error: String(err) });
         // Backoff on error
         await new Promise((r) => setTimeout(r, 5_000));
       }
@@ -352,6 +393,12 @@ export class WeChatAdapter implements ChannelAdapter {
     });
 
     if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error(
+          `WeChat API ${path} returned ${resp.status} — bot token 可能已失效，` +
+            `请运行 'myos --login' 重新扫码登录`,
+        );
+      }
       throw new Error(`WeChat API ${path} returned ${resp.status}`);
     }
 
@@ -389,7 +436,9 @@ export class WeChatAdapter implements ChannelAdapter {
   }
 
   private async saveToken(): Promise<void> {
-    await writeFile(this.tokenFilePath, JSON.stringify({ token: this.token }, null, 2), "utf8");
+    // The token is the bot's sole bearer credential — owner-only
+    await writeFile(this.tokenFilePath, JSON.stringify({ token: this.token }, null, 2), { mode: 0o600 });
+    await chmod(this.tokenFilePath, 0o600).catch(() => {});
   }
 
   private async loadSyncBuf(): Promise<void> {

@@ -2,6 +2,12 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Keep unit tests from writing to the real ~/.myos/logs
+vi.mock("../src/log.js", () => ({
+  logger: { log: vi.fn() },
+  preview: (text: string) => text,
+}));
+
 // Mock the Pi SDK
 vi.mock("@earendil-works/pi-coding-agent", () => {
   return {
@@ -11,6 +17,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
       static create = vi.fn();
     },
     SessionManager: class {
+      static create = vi.fn();
       static inMemory = vi.fn();
     },
     SettingsManager: class {
@@ -29,7 +36,24 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
-function mockSession(responses: string[] = ["Hello!"]): AgentSession {
+/** Events matching the real SDK contract: text is committed via message_end
+ *  (with stopReason) and the run completes with agent_settled. */
+function assistantEnd(text: string, stopReason = "stop", errorMessage?: string): AgentSessionEvent {
+  return {
+    type: "message_end",
+    message: {
+      role: "assistant",
+      stopReason,
+      errorMessage,
+      content: text ? [{ type: "text", text }] : [],
+    },
+  } as unknown as AgentSessionEvent;
+}
+
+const SETTLED = { type: "agent_settled" } as unknown as AgentSessionEvent;
+
+/** Session whose prompt() emits a scripted event sequence per call. */
+function mockScriptedSession(scripts: AgentSessionEvent[][]): AgentSession {
   let promptIndex = 0;
   const subscribers: Array<(event: AgentSessionEvent) => void> = [];
 
@@ -38,20 +62,22 @@ function mockSession(responses: string[] = ["Hello!"]): AgentSession {
       subscribers.push(handler);
       return vi.fn();
     }),
-    prompt: vi.fn(async (message: string) => {
-      const response = responses[promptIndex++] ?? "Default response";
-      for (const handler of subscribers) {
-        handler({
-          type: "message_update",
-          assistantMessageEvent: { type: "text_delta", delta: response },
-        } as unknown as AgentSessionEvent);
-        handler({ type: "agent_end" } as unknown as AgentSessionEvent);
+    prompt: vi.fn(async () => {
+      const events = scripts[promptIndex++] ?? scripts[scripts.length - 1] ?? [];
+      for (const event of events) {
+        for (const handler of [...subscribers]) {
+          handler(event);
+        }
       }
     }),
     abort: vi.fn(async () => {}),
     dispose: vi.fn(),
     agent: { waitForIdle: vi.fn(async () => {}) },
   } as unknown as AgentSession;
+}
+
+function mockSession(responses: string[] = ["Hello!"]): AgentSession {
+  return mockScriptedSession(responses.map((r) => [assistantEnd(r), SETTLED]));
 }
 
 const mockProviders = {
@@ -85,7 +111,7 @@ describe("PiAdapter", () => {
     } as unknown as InstanceType<typeof ModelRuntime>;
 
     vi.mocked(ModelRuntime.create).mockResolvedValue(mockModelRuntime);
-    vi.mocked(SessionManager.inMemory).mockReturnValue({} as never);
+    vi.mocked(SessionManager.create).mockReturnValue({} as never);
     vi.mocked(resolveCliModel).mockReturnValue({
       model: { id: "astron-code-latest", provider: "xfyun-astron" },
       error: undefined,
@@ -124,7 +150,10 @@ describe("PiAdapter", () => {
 
     const result = await adapter.run({ sessionId: "s1", message: "test" });
 
-    expect(session.prompt).toHaveBeenCalledWith("test");
+    expect(session.prompt).toHaveBeenCalledWith(
+      "test",
+      expect.objectContaining({ streamingBehavior: "followUp" }),
+    );
     expect(result.text).toBe("Response text");
   });
 
@@ -176,6 +205,66 @@ describe("PiAdapter", () => {
     await adapter.run({ sessionId: "s1", message: "hi" });
 
     expect(adapter.isRunning("s1")).toBe(false);
+  });
+
+  it("drops errored message text — only the regenerated reply is returned", async () => {
+    // SDK auto-retry: errored assistant message is removed and regenerated;
+    // committing its partial text would duplicate content
+    const session = mockScriptedSession([
+      [
+        assistantEnd("partial gar", "error", "connection reset"),
+        assistantEnd("Final answer"),
+        SETTLED,
+      ],
+    ]);
+    vi.mocked(createAgentSession).mockResolvedValue({ session } as never);
+
+    const result = await adapter.run({ sessionId: "s1", message: "hi" });
+
+    expect(result.text).toBe("Final answer");
+  });
+
+  it("rejects with the agent error when no text was produced", async () => {
+    const session = mockScriptedSession([
+      [assistantEnd("", "error", "invalid api key"), SETTLED],
+    ]);
+    vi.mocked(createAgentSession).mockResolvedValue({ session } as never);
+
+    await expect(adapter.run({ sessionId: "s1", message: "hi" })).rejects.toThrow(
+      "invalid api key",
+    );
+  });
+
+  it("does not settle on agent_end — waits for agent_settled", async () => {
+    const subscribers: Array<(event: AgentSessionEvent) => void> = [];
+    const session = {
+      subscribe: vi.fn((handler: (event: AgentSessionEvent) => void) => {
+        subscribers.push(handler);
+        return vi.fn();
+      }),
+      prompt: vi.fn(async () => {
+        for (const handler of [...subscribers]) {
+          handler(assistantEnd("Reply"));
+          handler({ type: "agent_end", willRetry: false, messages: [] } as unknown as AgentSessionEvent);
+          // No agent_settled yet — the SDK may still be compacting
+        }
+      }),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+    } as unknown as AgentSession;
+    vi.mocked(createAgentSession).mockResolvedValue({ session } as never);
+
+    const run = adapter.run({ sessionId: "s1", message: "hi" });
+    const raced = await Promise.race([
+      run.then(() => "settled"),
+      new Promise((r) => setTimeout(() => r("pending"), 50)),
+    ]);
+    expect(raced).toBe("pending");
+
+    // Compaction finishes — run settles now
+    for (const handler of [...subscribers]) handler(SETTLED);
+    const result = await run;
+    expect(result.text).toBe("Reply");
   });
 
   it("shutdown disposes all sessions", async () => {
