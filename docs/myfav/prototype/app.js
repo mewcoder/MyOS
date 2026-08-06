@@ -202,19 +202,8 @@ function renderHome() {
   const recent = records.slice(0, 7);
   main.innerHTML = `
     <div class="page-shell home-layout">
-      <section class="library-intro" aria-labelledby="home-title">
-        <p class="eyebrow">My internet shelf</p>
-        <h1 id="home-title">收藏值得<br />反复打开的东西。</h1>
-        <p class="intro-copy">一个本地优先的个人互联网书架，留住链接，也留住文章本身。</p>
-        <nav class="library-index" aria-label="内容类型索引">
-          <a href="#/sites">网站 <strong>82</strong></a>
-          <a href="#/repos">GitHub <strong>136</strong></a>
-          <a href="#/articles">文章 <strong>24</strong></a>
-        </nav>
-        <a class="arrow-link" href="#/all">浏览全部收藏 <span aria-hidden="true">→</span></a>
-      </section>
       <section class="recent-feed" aria-labelledby="recent-title">
-        <div class="section-heading"><h2 id="recent-title">最近收录</h2><span>2026 · 08</span></div>
+        <div class="section-heading"><h1 id="recent-title">最近收录</h1><span>2026 · 08</span></div>
         <div class="collection-list">${recent.map((item) => renderRow(item)).join("")}</div>
       </section>
     </div>`;
@@ -288,7 +277,7 @@ function renderCollection() {
             </label>
             <button class="filter-trigger ${state.tag ? "has-filter" : ""}" type="button" aria-haspopup="dialog">筛选${state.tag ? ` · ${escapeHtml(state.tag)}` : ""}</button>
           </div>
-          <div class="collection-list" id="visible-collection">
+          <div class="collection-list collection-list--${meta.type}" id="visible-collection">
             ${shown.length ? shown.map((item) => renderRow(item, meta.type === "all")).join("") : `<div class="empty-state"><h2>没有找到收藏</h2><p>试试清除关键词或当前筛选。</p><button class="quiet-button" type="button" data-clear-list>清除筛选</button></div>`}
           </div>
         </section>
