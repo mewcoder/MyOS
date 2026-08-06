@@ -13,6 +13,10 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   return {
     createAgentSession: vi.fn(),
     createExtensionRuntime: vi.fn(() => ({})),
+    DefaultResourceLoader: class {
+      reload = vi.fn(async () => {});
+      getSkills = vi.fn(() => ({ skills: [], diagnostics: [] }));
+    },
     ModelRuntime: class {
       static create = vi.fn();
     },
