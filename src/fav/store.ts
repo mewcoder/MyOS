@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, extname, join, posix } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, posix, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   FavError,
@@ -113,8 +113,48 @@ function validateRepos(value: unknown): asserts value is RepoRecord[] {
   }
 }
 
-function validateArticles(value: unknown, repoDir: string): asserts value is ArticleRecord[] {
+function markdownImageTargets(markdown: string): string[] {
+  const targets: string[] = [];
+  const pattern = /!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^)]*["'])?\s*\)/g;
+  for (const match of markdown.matchAll(pattern)) {
+    const target = match[1] ?? match[2];
+    if (target) targets.push(target);
+  }
+  return targets;
+}
+
+async function validateLocalImages(markdownPath: string, repoDir: string): Promise<void> {
+  let markdown: string;
+  try {
+    markdown = await readFile(markdownPath, "utf8");
+  } catch (error) {
+    throw new FavError("repo_invalid", `无法读取文章 Markdown：${markdownPath}`, error);
+  }
+  for (const rawTarget of markdownImageTargets(markdown)) {
+    if (/^[a-z][a-z\d+.-]*:/i.test(rawTarget) || rawTarget.startsWith("//")) continue;
+    let target: string;
+    try {
+      target = decodeURIComponent(rawTarget.split(/[?#]/, 1)[0]!);
+    } catch (error) {
+      throw new FavError("repo_invalid", `Markdown 图片路径编码无效：${rawTarget}`, error);
+    }
+    if (!target || target.startsWith("/") || target.startsWith("\\")) {
+      throw new FavError("repo_invalid", `Markdown 本地图片必须使用相对路径：${rawTarget}`);
+    }
+    const absolute = resolve(dirname(markdownPath), target);
+    const withinRepo = relative(repoDir, absolute);
+    if (withinRepo.startsWith("..") || isAbsolute(withinRepo)) {
+      throw new FavError("repo_invalid", `Markdown 图片路径超出 MyFav：${rawTarget}`);
+    }
+    if (!existsSync(absolute)) {
+      throw new FavError("repo_invalid", `Markdown 本地图片不存在：${rawTarget}`);
+    }
+  }
+}
+
+async function validateArticles(value: unknown, repoDir: string): Promise<ArticleRecord[]> {
   if (!Array.isArray(value)) throw new FavError("repo_invalid", "articles.json 顶层必须是数组");
+  const seenPaths = new Set<string>();
   for (const item of value) {
     if (!isObject(item)) throw new FavError("repo_invalid", "articles.json 条目必须是对象");
     validateCommon(item, "title");
@@ -129,13 +169,20 @@ function validateArticles(value: unknown, repoDir: string): asserts value is Art
     if (!/^articles\/\d{4}-\d{2}\/[^/]+\.md$/.test(path) || path.includes("..")) {
       throw new FavError("repo_invalid", `无效文章路径：${path}`);
     }
-    if (!existsSync(join(repoDir, path))) {
+    if (seenPaths.has(path)) {
+      throw new FavError("repo_invalid", `articles.json 存在重复 path：${path}`);
+    }
+    seenPaths.add(path);
+    const markdownPath = join(repoDir, path);
+    if (!existsSync(markdownPath)) {
       throw new FavError("repo_invalid", `文章文件不存在：${path}`);
     }
     if (!path.startsWith(`articles/${(item.saveTime as string).slice(0, 7)}/`)) {
       throw new FavError("repo_invalid", `文章月份与 saveTime 不一致：${path}`);
     }
+    await validateLocalImages(markdownPath, repoDir);
   }
+  return value as ArticleRecord[];
 }
 
 function ensureUniqueUrls(items: Array<{ url: string }>, file: string): void {
@@ -164,11 +211,11 @@ export async function readCollections(repoDir: string): Promise<FavCollections> 
   ]);
   validateSites(sites);
   validateRepos(repos);
-  validateArticles(articles, repoDir);
+  const validatedArticles = await validateArticles(articles, repoDir);
   ensureUniqueUrls(sites, "sites.json");
   ensureUniqueUrls(repos, "repos.json");
-  ensureUniqueUrls(articles, "articles.json");
-  return { sites, repos, articles };
+  ensureUniqueUrls(validatedArticles, "articles.json");
+  return { sites, repos, articles: validatedArticles };
 }
 
 export function findDuplicate(collections: FavCollections, url: string): DuplicateEntry | undefined {

@@ -140,7 +140,7 @@ npm start
 
 ### 微信内命令
 
-以 `/` 开头的消息会被网关拦截为命令（不经过 AI，即时响应）：
+以 `/` 开头的消息会被网关拦截为命令；`/save` 会转换为 `$fav` 后进入 Agent，其余控制命令即时响应：
 
 | 命令 | 说明 |
 |---|---|
@@ -148,14 +148,14 @@ npm start
 | `/new`（或 `/reset`） | 重置会话：清空上下文，新开 Pi session 重新开始 |
 | `/stop` | 中断当前正在执行的任务（agent 忙时同样立即生效，不排队） |
 | `/status` | 查看当前模型、会话 ID 与运行状态 |
-| `/save <链接>` | 强制收藏该链接（见下方 Inbox） |
-| `/inbox` | 查看收藏统计与最近条目 |
+| `/save <链接>` | 通过 `fav` 收藏到本地 MyFav |
+| `/inbox` | 查看旧 Inbox 的历史统计与最近条目 |
 
-其他消息将直接发给 AI 助手。未知的 `/xxx` 会返回提示而不是发给模型。
+其他消息（包括裸链接）将直接发给 AI 助手；裸链接会触发 `fav`。未知的 `/xxx` 会返回提示而不是发给模型。
 
 ### MyFav：统一收藏
 
-`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。向 Agent 发送 `$fav <链接>` 或“收藏这个链接”时，Skill 会先 dry-run，再通过确定性的 CLI 写入本地 MyFav clone。v1 只 commit，不自动 push。
+`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。直接发送裸链接、发送 `$fav <链接>`、使用 `/save <链接>` 或说“收藏这个链接”都会进入同一个 Skill。Skill 会先 dry-run，再通过确定性的 CLI 写入本地 MyFav clone。v1 只 commit，不自动 push。
 
 也可以直接使用 CLI：
 
@@ -173,36 +173,9 @@ myos fav "https://example.com" --type site --repo-dir "/path/to/myfav" --no-comm
 
 MyFav 必须包含 `public/data/sites.json`、`repos.json` 和 `articles.json`，三个文件的顶层均为数组。文章正文保存到 `articles/YYYY-MM/`，正文不含 frontmatter，下载成功的图片跟随文章本地化保存。
 
-### Inbox：链接收藏
+### 旧 Inbox：只读兼容
 
-**直接发一条文章链接**（可附不超过 40 字的备注），网关会自动抓取、结构化归档并回复摘要。链接后面跟长文字则视为提问，仍走 AI 助手——想强制收藏用 `/save`。
-
-抓取按结果逐层降级，由**提取结果**决定升级，而不是靠域名猜测：
-
-| 层 | 覆盖 | 说明 |
-|---|---|---|
-| HTTP | 公众号、独立博客、**X** | 约 2 秒。X 的正文在 `og:description` 里，服务端渲染，无需浏览器 |
-| Defuddle | HTTP 正文过薄或受限的页面 | 托管 Markdown 提取，只在本地 HTTP 不足时使用 |
-| 无头 Chrome | 纯客户端渲染的页面 | 仅当前两层都不足时启动；用 `playwright-core` 驱动系统 Chrome，不下载 Chromium |
-
-归档目录 `~/.myos/inbox/` 本身既是 git 仓库、也是 VitePress 站点源码：
-
-```
-inbox/
-├── items/2026/07/2026-07-26-<slug>.md   # 正文 + frontmatter（标题/作者/周/标签/摘要）
-├── data/index.jsonl                     # 结构化索引，周报直接查这个
-├── weeks/2026-W30.md                    # 按 ISO 周归档（生成）
-├── index.md / tags.md                   # 首页与标签页（生成）
-└── .github/workflows/deploy.yml         # 推送后自动部署 GitHub Pages
-```
-
-每次收藏都会自动 `git commit`；配了 remote 就顺带 push。本地预览：
-
-```bash
-cd ~/.myos/inbox && npm install && npm run dev
-```
-
-**周报数据源**：`data/index.jsonl` 每行一条记录，含 `week` 字段，按 ISO 周过滤即可喂给 agent 生成周报。
+`~/.myos/inbox/` 仅保留已有历史数据和 `/inbox` 统计兼容。微信裸链接与 `/save` 都不再写入旧 Inbox，也不会触发旧 Inbox 的自动 push 路径。它的 HTTP、站点适配器、Readability、Defuddle 和无头 Chrome 提取能力继续由 `fav` 复用。
 
 ### 后台运行（Daemon）
 

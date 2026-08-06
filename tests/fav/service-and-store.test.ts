@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runFavCli } from "../../src/fav/cli.js";
 import { FavService } from "../../src/fav/service.js";
+import { readCollections } from "../../src/fav/store.js";
 
 const temporary: string[] = [];
 
@@ -117,6 +118,48 @@ describe("FavService", () => {
       author: "作者",
       published: "2026-08-01",
       path: result.path,
+    });
+    await expect(readCollections(repoDir)).resolves.toMatchObject({ articles: [{ path: result.path }] });
+  });
+
+  it("rejects duplicate article paths across different records", async () => {
+    const repoDir = await createMyFav();
+    const path = "articles/2026-08/shared.md";
+    await mkdir(join(repoDir, "articles", "2026-08"), { recursive: true });
+    await writeFile(join(repoDir, path), "正文\n");
+    await writeFile(join(repoDir, "public", "data", "articles.json"), JSON.stringify([
+      {
+        title: "One", url: "https://example.com/one", description: "One", category: "技术",
+        tags: [], saveTime: "2026-08-01", path,
+      },
+      {
+        title: "Two", url: "https://example.com/two", description: "Two", category: "技术",
+        tags: [], saveTime: "2026-08-01", path,
+      },
+    ]));
+    await expect(readCollections(repoDir)).rejects.toMatchObject({
+      code: "repo_invalid",
+      message: expect.stringContaining("重复 path"),
+    });
+  });
+
+  it("rejects an article Markdown file whose local image is missing", async () => {
+    const repoDir = await createMyFav();
+    const path = "articles/2026-08/missing-image.md";
+    await mkdir(join(repoDir, "articles", "2026-08"), { recursive: true });
+    await writeFile(join(repoDir, path), "正文\n\n![missing](./missing-image/01.png)\n");
+    await writeFile(join(repoDir, "public", "data", "articles.json"), JSON.stringify([{
+      title: "Missing image",
+      url: "https://example.com/missing-image",
+      description: "Missing image",
+      category: "技术",
+      tags: [],
+      saveTime: "2026-08-01",
+      path,
+    }]));
+    await expect(readCollections(repoDir)).rejects.toMatchObject({
+      code: "repo_invalid",
+      message: expect.stringContaining("本地图片不存在"),
     });
   });
 

@@ -56,6 +56,7 @@ GitHub Pages
 MyOS 不再把 `~/.myos/inbox/` 作为最终网站数据源；现有 Inbox 的提取器和站点适配器继续复用。
 
 链接收藏统一由 [`fav` Skill](./fav.md) 编排。Skill 负责理解用户意图和生成极简元信息，确定性的抓取、校验与落盘由 `myos fav` 命令完成。
+微信裸链接直接进入 Agent 并触发 `fav`；`/save` 会转换为 `$fav`。两者均不得再写入或自动 push 旧 Inbox。
 
 ## 3. 仓库结构
 
