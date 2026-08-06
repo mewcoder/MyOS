@@ -6,4 +6,4 @@
 
 ## 交付计划
 
-- [计划目录](./plan/README.md)：实现任务、分析与 review 状态入口；当前 `fav-001` 正在修复首轮 blocking findings。
+- [计划目录](./plan/README.md)：实现任务与分析入口；`fav-001` 已完成并通过独立 review。
