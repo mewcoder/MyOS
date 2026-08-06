@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="MyFav 静态交互设计稿：一个安静、温暖、高效的个人互联网书架。"
+    />
+    <title>MyFav · 个人互联网书架</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <header class="site-header" id="site-header">
+      <div class="header-inner">
+        <a class="brand route-link" href="#/" aria-label="MyFav 首页">MyFav<span aria-hidden="true">.</span></a>
+
+        <nav class="desktop-nav" aria-label="主导航">
+          <a class="route-link home-nav-link" href="#/" data-nav-route="home">首页</a>
+          <a class="route-link" href="#/sites" data-nav-route="sites">网站</a>
+          <a class="route-link" href="#/repos" data-nav-route="repos">GitHub</a>
+          <a class="route-link" href="#/articles" data-nav-route="articles">文章</a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="text-button search-trigger" type="button" aria-haspopup="dialog">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
+            <span>搜索</span><kbd>⌘K</kbd>
+          </button>
+          <button class="icon-button theme-toggle" type="button" aria-label="切换至深色主题">
+            <svg class="theme-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"></path></svg>
+          </button>
+          <a class="source-link" href="https://github.com/mewcoder/myfav" target="_blank" rel="noreferrer">源码 <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content" tabindex="-1"></main>
+
+    <nav class="mobile-bottom-nav" aria-label="移动端主导航">
+      <a class="route-link" href="#/" data-nav-route="home"><span aria-hidden="true">⌂</span><span>首页</span></a>
+      <a class="route-link" href="#/sites" data-nav-route="sites"><span aria-hidden="true">◎</span><span>网站</span></a>
+      <a class="route-link" href="#/repos" data-nav-route="repos"><span aria-hidden="true">⌘</span><span>GitHub</span></a>
+      <a class="route-link" href="#/articles" data-nav-route="articles"><span aria-hidden="true">¶</span><span>文章</span></a>
+    </nav>
+
+    <div class="overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" hidden>
+      <button class="overlay-backdrop" type="button" tabindex="-1" data-close-search aria-label="关闭搜索"></button>
+      <section class="search-panel" aria-describedby="search-help">
+        <div class="search-input-row">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
+          <label class="sr-only" id="search-title" for="global-search-input">搜索网站、GitHub 和文章</label>
+          <input id="global-search-input" type="search" autocomplete="off" placeholder="搜索网站、GitHub 和文章…" />
+          <button class="search-close" type="button" data-close-search aria-label="关闭搜索"><span class="mobile-only" aria-hidden="true">关闭</span><kbd class="desktop-only">Esc</kbd></button>
+        </div>
+        <div class="search-tabs" role="group" aria-label="搜索范围">
+          <button type="button" data-search-type="all" aria-pressed="true">全部</button>
+          <button type="button" data-search-type="site" aria-pressed="false">网站</button>
+          <button type="button" data-search-type="repo" aria-pressed="false">GitHub</button>
+          <button type="button" data-search-type="article" aria-pressed="false">文章</button>
+        </div>
+        <p class="sr-only" id="search-help">使用上下方向键选择结果，按 Enter 打开，按 Escape 关闭。</p>
+        <div class="search-results" id="search-results" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <div class="sheet-layer" id="filter-sheet" role="dialog" aria-modal="true" aria-labelledby="filter-title" hidden>
+      <button class="sheet-backdrop" type="button" tabindex="-1" data-close-filter aria-label="关闭筛选"></button>
+      <section class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-heading">
+          <h2 id="filter-title">按标签筛选</h2>
+          <button class="icon-button" type="button" data-close-filter aria-label="关闭筛选">×</button>
+        </div>
+        <div class="tag-options" id="tag-options"></div>
+        <div class="sheet-actions">
+          <button class="quiet-button" type="button" id="clear-filter">清除</button>
+          <button class="primary-button" type="button" id="apply-filter">查看结果</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="drawer-layer" id="toc-drawer" role="dialog" aria-modal="true" aria-labelledby="toc-title" hidden>
+      <button class="drawer-backdrop" type="button" tabindex="-1" data-close-toc aria-label="关闭文章目录"></button>
+      <aside class="toc-drawer-panel">
+        <div class="drawer-heading">
+          <p class="eyebrow" id="toc-title">本文目录</p>
+          <button class="icon-button" type="button" data-close-toc aria-label="关闭文章目录">×</button>
+        </div>
+        <nav id="mobile-toc" aria-label="文章目录"></nav>
+      </aside>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

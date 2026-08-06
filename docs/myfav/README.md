@@ -417,6 +417,6 @@ v1 明确不包含：
 |---|---|
 | MyFav 数据校验与写入脚本 | 已实现于 `src/fav/store.ts` |
 | [`fav` Skill 与 MyOS → MyFav 写入接口](./fav.md) | 已实现 |
-| 文章 Markdown 渲染 | 待设计 |
+| [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 第一版设计稿待确认 |
 | Utterances 笔记组件 | 本文已定义外部契约，待实现 |
 | GitHub Issues 到博客的整理流程 | 待设计 |
