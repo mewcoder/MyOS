@@ -88,7 +88,6 @@ export const GatewayConfigSchema = z.object({
   workspaceDir: z.string().optional(),
   thinkingLevel: ThinkingLevelSchema.optional(),
   sessionDir: z.string().optional(),
-  skillDir: z.string().optional(),
 });
 
 // ─── Types inferred from schema ──────────────────────────────────
@@ -134,7 +133,6 @@ export function validateConfig(raw: unknown): GatewayConfig {
       defaultModel: flat.defaultModel,
       workspaceDir: flat.workspaceDir,
       thinkingLevel: flat.thinkingLevel,
-      skillDir: flat.skillDir,
     },
     session: { dir: flat.sessionDir },
   };

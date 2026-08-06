@@ -1,4 +1,0 @@
-interface:
-  display_name: "Fav"
-  short_description: "收藏网站、GitHub 仓库和文章到本地 MyFav"
-  default_prompt: "Use $fav to preview and save this link to my local MyFav collection."

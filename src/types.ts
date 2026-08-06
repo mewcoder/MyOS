@@ -98,8 +98,6 @@ export interface AgentConfig {
   workspaceDir?: string;
   /** Thinking level: off, minimal, low, medium, high, xhigh, max. */
   thinkingLevel?: string;
-  /** Directory for agent skills. Defaults to ~/.myos/skills. */
-  skillDir?: string;
 }
 
 /**

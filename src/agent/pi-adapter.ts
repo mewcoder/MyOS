@@ -2,16 +2,16 @@
 
 import {
   createAgentSession,
-  DefaultResourceLoader,
+  createExtensionRuntime,
   ModelRuntime,
   SessionManager,
   SettingsManager,
+  type ResourceLoader,
   resolveCliModel,
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { logger } from "../log.js";
 import { PI_DIR, PI_SESSIONS_DIR } from "../paths.js";
@@ -26,42 +26,6 @@ export interface PiAdapterConfig {
   workspaceDir: string;
   /** Thinking level: off, minimal, low, medium, high, xhigh, max. */
   thinkingLevel?: string;
-  /** Optional additional directory containing user Skills. */
-  skillDir?: string;
-}
-
-export const BUILTIN_SKILLS_DIR = fileURLToPath(new URL("../../skills", import.meta.url));
-
-export async function createPiResourceLoader(options: {
-  cwd: string;
-  agentDir: string;
-  settingsManager: SettingsManager;
-  systemPrompt: string;
-  skillDir?: string;
-}): Promise<DefaultResourceLoader> {
-  const additionalSkillPaths = [BUILTIN_SKILLS_DIR];
-  if (options.skillDir) additionalSkillPaths.push(options.skillDir);
-  const loader = new DefaultResourceLoader({
-    cwd: options.cwd,
-    agentDir: options.agentDir,
-    settingsManager: options.settingsManager,
-    additionalSkillPaths,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
-    systemPrompt: options.systemPrompt,
-  });
-  await loader.reload();
-  for (const diagnostic of loader.getSkills().diagnostics) {
-    logger.log("pi_skill_diagnostic", {
-      type: diagnostic.type,
-      message: diagnostic.message,
-      path: diagnostic.path,
-    });
-  }
-  return loader;
 }
 
 
@@ -212,6 +176,18 @@ You have access to file and shell tools (read, bash, edit, write, grep, find, ls
 Respond concisely and helpfully. Your working directory is the user's workspace.
 ${systemPromptSuffix ?? ""}`;
 
+    const resourceLoader: ResourceLoader = {
+      getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+      getPrompts: () => ({ prompts: [], diagnostics: [] }),
+      getThemes: () => ({ themes: [], diagnostics: [] }),
+      getAgentsFiles: () => ({ agentsFiles: [] }),
+      getSystemPrompt: () => systemPrompt,
+      getAppendSystemPrompt: () => [],
+      extendResources: () => {},
+      reload: async () => {},
+    };
+
     // Persisted (not inMemory): the full transcript — messages, tool calls,
     // compaction summaries — lands as JSONL under ~/.myos/pi/sessions for
     // post-hoc tracing and debugging
@@ -222,13 +198,6 @@ ${systemPromptSuffix ?? ""}`;
       // only (overflow is explicitly not retried).
       compaction: { enabled: true },
       retry: { enabled: true, maxRetries: 2 },
-    });
-    const resourceLoader = await createPiResourceLoader({
-      cwd: workDir,
-      agentDir: PI_DIR,
-      settingsManager,
-      systemPrompt,
-      skillDir: this.config.skillDir,
     });
 
     const { session } = await createAgentSession({
