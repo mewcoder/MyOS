@@ -4,6 +4,7 @@
 
 已完成任务：
 
+- [`myfav-ai-001`](./tasks/myfav-ai-001.md)（done）：完成 AI 设置、单 JSON 数据问答、文章 Markdown 通用问答与居中阅读布局原型。
 - [`myfav-ui-003`](./tasks/myfav-ui-003.md)（done）：网站列表在 desktop/tablet 统一使用两列。
 - [`myfav-ui-002`](./tasks/myfav-ui-002.md)（done）：网站 desktop 三列/tablet 两列、GitHub 双列，并将首页改为全宽最近收录。
 - [`myfav-ui-001`](./tasks/myfav-ui-001.md)（done）：完成 MyFav 首页、统一收藏列表和文章详情的响应式静态设计稿。

@@ -30,6 +30,10 @@
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
             <span>搜索</span><kbd>⌘K</kbd>
           </button>
+          <button class="icon-button ai-settings-trigger" type="button" aria-haspopup="dialog" aria-label="打开 AI 设置">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"></path><path d="m18.5 15 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z"></path></svg>
+            <span class="ai-status-dot" aria-hidden="true"></span>
+          </button>
           <button class="icon-button theme-toggle" type="button" aria-label="切换至深色主题">
             <svg class="theme-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"></path></svg>
           </button>
@@ -50,17 +54,34 @@
     <div class="overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title" hidden>
       <button class="overlay-backdrop" type="button" tabindex="-1" data-close-search aria-label="关闭搜索"></button>
       <section class="search-panel" aria-describedby="search-help">
+        <div class="search-mode-switch" role="group" aria-label="搜索模式">
+          <button type="button" data-search-mode="keyword" aria-pressed="true">关键词搜索</button>
+          <button type="button" data-search-mode="ai" aria-pressed="false">AI 数据问答</button>
+          <span>静态演示</span>
+        </div>
         <div class="search-input-row">
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
           <label class="sr-only" id="search-title" for="global-search-input">搜索网站、GitHub 和文章</label>
           <input id="global-search-input" type="search" autocomplete="off" placeholder="搜索网站、GitHub 和文章…" />
           <button class="search-close" type="button" data-close-search aria-label="关闭搜索"><span class="mobile-only" aria-hidden="true">关闭</span><kbd class="desktop-only">Esc</kbd></button>
         </div>
-        <div class="search-tabs" role="group" aria-label="搜索范围">
+        <div class="search-tabs" id="keyword-search-controls" role="group" aria-label="关键词搜索范围">
           <button type="button" data-search-type="all" aria-pressed="true">全部</button>
           <button type="button" data-search-type="site" aria-pressed="false">网站</button>
           <button type="button" data-search-type="repo" aria-pressed="false">GitHub</button>
           <button type="button" data-search-type="article" aria-pressed="false">文章</button>
+        </div>
+        <div class="ai-search-controls" id="ai-search-controls" hidden>
+          <div class="ai-source-row">
+            <span>单文件范围</span>
+            <div role="group" aria-label="AI 数据文件">
+              <button type="button" data-ai-source="sites" aria-pressed="false">sites.json</button>
+              <button type="button" data-ai-source="repos" aria-pressed="false">repos.json</button>
+              <button type="button" data-ai-source="articles" aria-pressed="true">articles.json</button>
+            </div>
+            <button class="primary-button ai-search-submit" type="button">询问 AI</button>
+          </div>
+          <p class="ai-context-line" id="ai-search-context"></p>
         </div>
         <p class="sr-only" id="search-help">使用上下方向键选择结果，按 Enter 打开，按 Escape 关闭。</p>
         <div class="search-results" id="search-results" aria-live="polite"></div>
@@ -92,6 +113,35 @@
         </div>
         <nav id="mobile-toc" aria-label="文章目录"></nav>
       </aside>
+    </div>
+
+    <div class="settings-overlay" id="ai-settings-overlay" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title" hidden>
+      <button class="overlay-backdrop" type="button" tabindex="-1" data-close-ai-settings aria-label="关闭 AI 设置"></button>
+      <section class="ai-settings-panel">
+        <header class="settings-heading">
+          <div><p class="eyebrow">Optional enhancement</p><h2 id="ai-settings-title">AI 设置</h2></div>
+          <button class="icon-button" type="button" data-close-ai-settings aria-label="关闭 AI 设置">×</button>
+        </header>
+        <p class="prototype-warning"><strong>纯静态演示，不会发送网络请求。</strong> 请勿填写真实 API Key；任意示例值即可体验已配置状态。</p>
+        <form class="ai-settings-form" id="ai-settings-form">
+          <label for="ai-base-url">API Base URL</label>
+          <input id="ai-base-url" name="baseUrl" type="url" placeholder="https://api.example.com/v1" autocomplete="off" />
+          <label for="ai-api-key">API Key</label>
+          <input id="ai-api-key" name="apiKey" type="password" placeholder="demo-key（请勿填写真实密钥）" autocomplete="off" />
+          <label for="ai-model">Model</label>
+          <input id="ai-model" name="model" type="text" placeholder="model-name" autocomplete="off" />
+          <label class="remember-key-option" for="ai-remember-key">
+            <input id="ai-remember-key" name="rememberKey" type="checkbox" />
+            <span>在此设备保存密钥 <small>原型仅演示该选择，不写入浏览器存储。</small></span>
+          </label>
+          <p class="settings-status" id="ai-settings-status" role="status" aria-live="polite">当前未配置</p>
+          <div class="settings-actions">
+            <button class="quiet-button" type="button" id="clear-ai-settings">清除配置</button>
+            <button class="quiet-button" type="button" id="test-ai-settings">测试连接</button>
+            <button class="primary-button" type="submit">保存演示配置</button>
+          </div>
+        </form>
+      </section>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

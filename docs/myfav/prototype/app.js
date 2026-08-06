@@ -130,13 +130,31 @@ const routeMeta = {
   },
 };
 
+const aiContextMeta = {
+  sites: { file: "sites.json", count: 82, chars: "28,640" },
+  repos: { file: "repos.json", count: 136, chars: "42,180" },
+  articles: { file: "articles.json", count: 24, chars: "18,420" },
+};
+
 const state = {
   route: "home",
   category: "全部",
   localQuery: "",
   tag: "",
   searchType: "all",
+  searchMode: "keyword",
   searchIndex: -1,
+  aiSource: "articles",
+  aiConfigured: false,
+  aiConfig: { baseUrl: "", model: "", rememberKey: false },
+  aiSearchStatus: "idle",
+  aiSearchOutput: "",
+  articleAiExpanded: false,
+  articleAiStatus: "idle",
+  articleAiOutput: "",
+  articleAiPrompt: "",
+  pendingAiAction: null,
+  simulationTimer: null,
   returnFocus: null,
   toastTimer: null,
 };
@@ -145,12 +163,18 @@ const main = document.querySelector("#main-content");
 const searchOverlay = document.querySelector("#search-overlay");
 const searchInput = document.querySelector("#global-search-input");
 const searchResults = document.querySelector("#search-results");
+const keywordSearchControls = document.querySelector("#keyword-search-controls");
+const aiSearchControls = document.querySelector("#ai-search-controls");
+const aiSearchContext = document.querySelector("#ai-search-context");
 const filterSheet = document.querySelector("#filter-sheet");
 const tagOptions = document.querySelector("#tag-options");
 const tocDrawer = document.querySelector("#toc-drawer");
 const mobileToc = document.querySelector("#mobile-toc");
+const aiSettingsOverlay = document.querySelector("#ai-settings-overlay");
+const aiSettingsForm = document.querySelector("#ai-settings-form");
+const aiSettingsStatus = document.querySelector("#ai-settings-status");
 const toast = document.querySelector("#toast");
-const modalLayers = [searchOverlay, filterSheet, tocDrawer];
+const modalLayers = [searchOverlay, filterSheet, tocDrawer, aiSettingsOverlay];
 const backgroundRoots = [
   document.querySelector(".skip-link"),
   document.querySelector(".site-header"),
@@ -301,6 +325,32 @@ function tocLinks(className = "toc-nav") {
   return `<div class="${className}">${articleToc.map(([id, label]) => `<a href="#${id}" data-toc-link data-section="${id}">${label}</a>`).join("")}</div>`;
 }
 
+function articleAiMarkup() {
+  return `
+    <section class="article-ai" aria-labelledby="article-ai-title">
+      <header class="article-ai-heading">
+        <div><p class="eyebrow">Article AI</p><h2 id="article-ai-title">针对当前文章问 AI</h2></div>
+        <button class="text-button article-ai-toggle" type="button" aria-expanded="${state.articleAiExpanded}" aria-controls="article-ai-body">${state.articleAiExpanded ? "折叠" : "展开"}</button>
+      </header>
+      <div class="article-ai-body" id="article-ai-body" ${state.articleAiExpanded ? "" : "hidden"}>
+        <p class="ai-scope-note">通用问答只基于当前 Markdown 正文，不读取其他文章或收藏数据。总结只是一个快捷问题。</p>
+        <button class="quiet-button article-summary-action" type="button">总结这篇文章</button>
+        <form class="article-ai-form" id="article-ai-form">
+          <label class="sr-only" for="article-ai-input">针对当前文章提问</label>
+          <input id="article-ai-input" type="text" placeholder="针对当前 Markdown 提问…" autocomplete="off" />
+          <button class="primary-button" type="submit">发送</button>
+        </form>
+        <div class="article-ai-answer" id="article-ai-answer" aria-live="polite"></div>
+        <div class="article-ai-actions">
+          <button class="text-button article-ai-regenerate" type="button" hidden>重新生成</button>
+          <button class="text-button article-ai-stop" type="button" hidden>停止</button>
+          <button class="text-button article-ai-clear" type="button" hidden>清空对话</button>
+        </div>
+        <p class="ai-context-line">完整上下文：articles/2026-08/agent-skill.md · 当前 Markdown · 3,126 字符</p>
+      </div>
+    </section>`;
+}
+
 function renderArticle() {
   mobileToc.innerHTML = tocLinks("toc-nav");
   main.innerHTML = `
@@ -314,16 +364,17 @@ function renderArticle() {
           </button>
         </div>
       </div>
-      <article>
-        <header class="article-header">
-          <p class="article-kicker">Agent 开发 · <time datetime="2026-08-01">2026-08-01</time></p>
-          <h1>如何构建可靠的 Agent Skill</h1>
-          <p class="article-deck">一份关于工作流、数据边界与验证方式的实践。Skill 不应只是更长的提示词，而应是一条可以被理解、执行和检查的路径。</p>
-          <div class="article-byline"><span>Cloudflare</span><span aria-hidden="true">·</span><a href="https://github.com/cloudflare/skills" target="_blank" rel="noreferrer">阅读原文 ↗</a></div>
-          <div class="article-tags" aria-label="文章标签"><span>AI</span><span>skill</span><span>workflow</span></div>
-        </header>
-        <div class="article-layout">
-          <aside class="article-toc" aria-label="本文目录"><p class="eyebrow">本文目录</p>${tocLinks()}</aside>
+      <article class="article-layout">
+        <aside class="article-toc" aria-label="本文目录"><div class="article-toc-inner"><p class="eyebrow">本文目录</p>${tocLinks()}</div></aside>
+        <div class="article-reading-flow">
+          <header class="article-header">
+            <p class="article-kicker">Agent 开发 · <time datetime="2026-08-01">2026-08-01</time></p>
+            <h1>如何构建可靠的 Agent Skill</h1>
+            <p class="article-deck">一份关于工作流、数据边界与验证方式的实践。Skill 不应只是更长的提示词，而应是一条可以被理解、执行和检查的路径。</p>
+            <div class="article-byline"><span>Cloudflare</span><span aria-hidden="true">·</span><button class="text-button article-ai-open" type="button">问 AI</button><span aria-hidden="true">·</span><a href="https://github.com/cloudflare/skills" target="_blank" rel="noreferrer">阅读原文 ↗</a></div>
+            <div class="article-tags" aria-label="文章标签"><span>AI</span><span>skill</span><span>workflow</span></div>
+          </header>
+          ${articleAiMarkup()}
           <div class="article-body">
             <p>一个可靠的 Skill，首先要让 Agent 知道什么时候使用它，然后才是如何使用。触发条件、输入边界、失败方式和最终产物，都应当在行动发生之前变得清楚。</p>
             <blockquote>把 Skill 当作一份可执行的工作约定：它约束判断，也给执行留下空间。</blockquote>
@@ -384,6 +435,7 @@ function renderArticle() {
         </div>
       </article>
     </div>`;
+  renderArticleAiState();
 }
 
 function render() {
@@ -437,7 +489,9 @@ function closeLayer(layer, restoreFocus = true) {
 }
 
 function trapLayerFocus(event, layer) {
-  const focusable = [...layer.querySelectorAll(focusableSelector)].filter((element) => !element.hidden);
+  const focusable = [...layer.querySelectorAll(focusableSelector)].filter(
+    (element) => !element.closest("[hidden]"),
+  );
   if (!focusable.length) {
     event.preventDefault();
     return;
@@ -456,8 +510,102 @@ function trapLayerFocus(event, layer) {
 function openSearch(trigger) {
   openLayer(searchOverlay, trigger);
   state.searchIndex = -1;
-  renderSearchResults();
+  updateSearchModeUI();
   window.setTimeout(() => searchInput.focus(), 20);
+}
+
+function defaultAiSource() {
+  if (state.route === "sites") return "sites";
+  if (state.route === "repos") return "repos";
+  return "articles";
+}
+
+function updateSearchModeUI() {
+  const isAiMode = state.searchMode === "ai";
+  document.querySelectorAll("[data-search-mode]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.searchMode === state.searchMode));
+  });
+  keywordSearchControls.hidden = isAiMode;
+  aiSearchControls.hidden = !isAiMode;
+  searchInput.placeholder = isAiMode ? "向选中的完整 JSON 文件提问…" : "搜索网站、GitHub 和文章…";
+  document.querySelectorAll("[data-ai-source]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.aiSource === state.aiSource));
+  });
+  const context = aiContextMeta[state.aiSource];
+  aiSearchContext.textContent = `完整文件上下文：${context.file} · ${context.count} 条 · ${context.chars} 字符 · 不与其他 JSON 合并`;
+  if (isAiMode) renderAiSearchResults();
+  else renderSearchResults();
+}
+
+function renderAiSearchResults() {
+  const context = aiContextMeta[state.aiSource];
+  const configuredHint = state.aiConfigured ? "演示配置已就绪" : "尚未配置，提交问题后将打开 AI 设置";
+  if (state.aiSearchStatus === "idle") {
+    searchResults.innerHTML = `<div class="ai-answer-empty"><p>选择一个 JSON 文件并提出问题。每次只使用该文件的完整内容。</p><span>${configuredHint}</span></div>`;
+    return;
+  }
+  const isRunning = state.aiSearchStatus === "generating";
+  searchResults.innerHTML = `
+    <section class="ai-answer-block" aria-label="AI 数据回答">
+      <div class="ai-answer-heading"><p class="eyebrow">AI 回答${isRunning ? " · 生成中" : ""}</p>${isRunning ? '<button class="text-button ai-search-stop" type="button">停止</button>' : '<button class="text-button ai-search-regenerate" type="button">重新生成</button>'}</div>
+      <p>${escapeHtml(state.aiSearchOutput || "正在读取完整文件上下文…")}</p>
+      <small>本次完整上下文：${context.file} · ${context.count} 条 · ${context.chars} 字符</small>
+    </section>`;
+}
+
+function clearSimulation() {
+  if (state.simulationTimer) window.clearInterval(state.simulationTimer);
+  state.simulationTimer = null;
+}
+
+function simulateChunks(chunks, onProgress, onDone) {
+  clearSimulation();
+  let index = 0;
+  state.simulationTimer = window.setInterval(() => {
+    onProgress(chunks[index]);
+    index += 1;
+    if (index >= chunks.length) {
+      clearSimulation();
+      onDone();
+    }
+  }, 360);
+}
+
+function startAiSearch() {
+  const question = searchInput.value.trim();
+  if (!question) {
+    state.aiSearchStatus = "done";
+    state.aiSearchOutput = "请先输入一个关于当前 JSON 文件的问题。";
+    renderAiSearchResults();
+    return;
+  }
+  if (!state.aiConfigured) {
+    state.pendingAiAction = { kind: "search" };
+    closeLayer(searchOverlay, false);
+    openAiSettings(document.querySelector(".ai-settings-trigger"));
+    return;
+  }
+  const context = aiContextMeta[state.aiSource];
+  state.aiSearchStatus = "generating";
+  state.aiSearchOutput = "";
+  renderAiSearchResults();
+  const answers = {
+    sites: ["根据 sites.json，", "与效率和内容整理相关的网站包括 Linear、Raycast 与 Are.na。", "回答只引用当前文件已有记录。"],
+    repos: ["根据 repos.json，", "与 Agent Skill 和正文提取相关的仓库包括 cloudflare/skills、mozilla/readability 与 kepano/defuddle。", "这些结论未使用其他收藏文件。"],
+    articles: ["根据 articles.json，", "与工作流和软件设计相关的文章包括《如何构建可靠的 Agent Skill》和《Local-first software》。", "资料不足的部分不会用外部知识补全。"],
+  };
+  simulateChunks(
+    answers[state.aiSource],
+    (chunk) => {
+      state.aiSearchOutput += `${state.aiSearchOutput ? " " : ""}${chunk}`;
+      renderAiSearchResults();
+    },
+    () => {
+      state.aiSearchStatus = "done";
+      state.aiSearchOutput += ` 完整上下文为 ${context.file}。`;
+      renderAiSearchResults();
+    },
+  );
 }
 
 function filteredSearchRecords() {
@@ -506,6 +654,99 @@ function showToast(message) {
   }, 2800);
 }
 
+function updateAiIndicators() {
+  document.querySelectorAll(".ai-settings-trigger").forEach((button) => {
+    button.classList.toggle("is-configured", state.aiConfigured);
+    button.setAttribute("aria-label", state.aiConfigured ? "打开 AI 设置（演示配置已就绪）" : "打开 AI 设置（未配置）");
+  });
+}
+
+function openAiSettings(trigger) {
+  const baseUrl = aiSettingsForm.elements.baseUrl;
+  const model = aiSettingsForm.elements.model;
+  const rememberKey = aiSettingsForm.elements.rememberKey;
+  baseUrl.value = state.aiConfig.baseUrl;
+  model.value = state.aiConfig.model;
+  rememberKey.checked = state.aiConfig.rememberKey;
+  aiSettingsForm.elements.apiKey.value = "";
+  aiSettingsForm.elements.apiKey.placeholder = state.aiConfigured ? "••••••••（演示已配置，输入可替换）" : "demo-key（请勿填写真实密钥）";
+  aiSettingsStatus.textContent = state.aiConfigured ? "演示配置已就绪，不会发送网络请求" : "当前未配置";
+  openLayer(aiSettingsOverlay, trigger);
+  window.setTimeout(() => {
+    const firstEmpty = [baseUrl, aiSettingsForm.elements.apiKey, model].find((field) => !field.value);
+    firstEmpty?.focus();
+  }, 20);
+}
+
+function resumePendingAi(action) {
+  if (!action) return;
+  if (action.kind === "search") {
+    state.searchMode = "ai";
+    openSearch(document.querySelector(".search-trigger"));
+    window.setTimeout(startAiSearch, 40);
+  } else if (action.kind === "article") {
+    startArticleAi(action.prompt);
+  }
+}
+
+function renderArticleAiState() {
+  const body = document.querySelector("#article-ai-body");
+  if (!body) return;
+  const toggle = document.querySelector(".article-ai-toggle");
+  const answer = document.querySelector("#article-ai-answer");
+  const regenerate = document.querySelector(".article-ai-regenerate");
+  const stop = document.querySelector(".article-ai-stop");
+  const clear = document.querySelector(".article-ai-clear");
+  body.hidden = !state.articleAiExpanded;
+  toggle.setAttribute("aria-expanded", String(state.articleAiExpanded));
+  toggle.textContent = state.articleAiExpanded ? "折叠" : "展开";
+  const isRunning = state.articleAiStatus === "generating";
+  if (state.articleAiStatus === "idle") {
+    answer.innerHTML = `<div class="ai-answer-empty"><p>可针对当前文章自由提问，或使用“总结这篇文章”快捷问题。</p><span>${state.aiConfigured ? "演示配置已就绪" : "尚未配置，提交后将打开 AI 设置"}</span></div>`;
+  } else {
+    answer.innerHTML = `<div class="ai-answer-block"><p class="eyebrow">回答${isRunning ? " · 生成中" : ""}</p><p>${escapeHtml(state.articleAiOutput || "正在读取当前 Markdown…")}</p></div>`;
+  }
+  regenerate.hidden = state.articleAiStatus !== "done";
+  stop.hidden = !isRunning;
+  clear.hidden = state.articleAiStatus === "idle";
+}
+
+function startArticleAi(prompt) {
+  state.articleAiExpanded = true;
+  state.articleAiPrompt = prompt;
+  if (!state.aiConfigured) {
+    state.pendingAiAction = { kind: "article", prompt };
+    renderArticleAiState();
+    openAiSettings(document.querySelector(".article-ai-open"));
+    return;
+  }
+  state.articleAiStatus = "generating";
+  state.articleAiOutput = "";
+  renderArticleAiState();
+  const isSummary = prompt === "总结这篇文章";
+  const chunks = isSummary
+    ? ["这篇文章说明，可靠的 Skill 应当明确触发条件、输入边界与失败方式。", "要点：Skill 保持在编排层；数据结构先于抓取实现；副作用交给确定性工具；写入前先 dry-run。"]
+    : ["仅根据当前 Markdown，", "文章认为 Skill 应负责理解意图与编排流程，而抓取、校验和写入应由确定性命令完成。", "正文没有提供的信息无法据此判断。"];
+  simulateChunks(
+    chunks,
+    (chunk) => {
+      state.articleAiOutput += `${state.articleAiOutput ? " " : ""}${chunk}`;
+      renderArticleAiState();
+    },
+    () => {
+      state.articleAiStatus = "done";
+      renderArticleAiState();
+    },
+  );
+}
+
+function stopArticleAi() {
+  clearSimulation();
+  state.articleAiStatus = "done";
+  state.articleAiOutput += `${state.articleAiOutput ? " " : ""}已停止生成（静态演示）。`;
+  renderArticleAiState();
+}
+
 function rerenderCollection(focusSelector) {
   renderCollection();
   if (focusSelector) document.querySelector(focusSelector)?.focus();
@@ -514,6 +755,58 @@ function rerenderCollection(focusSelector) {
 document.addEventListener("click", (event) => {
   const searchTrigger = event.target.closest(".search-trigger");
   if (searchTrigger) openSearch(searchTrigger);
+
+  const aiSettingsTrigger = event.target.closest(".ai-settings-trigger");
+  if (aiSettingsTrigger) openAiSettings(aiSettingsTrigger);
+
+  const searchMode = event.target.closest("[data-search-mode]");
+  if (searchMode) {
+    state.searchMode = searchMode.dataset.searchMode;
+    if (state.searchMode === "ai") state.aiSource = defaultAiSource();
+    state.searchIndex = -1;
+    updateSearchModeUI();
+    searchInput.focus();
+  }
+
+  const aiSource = event.target.closest("[data-ai-source]");
+  if (aiSource) {
+    state.aiSource = aiSource.dataset.aiSource;
+    state.aiSearchStatus = "idle";
+    state.aiSearchOutput = "";
+    updateSearchModeUI();
+  }
+
+  if (event.target.closest(".ai-search-submit")) startAiSearch();
+  if (event.target.closest(".ai-search-regenerate")) startAiSearch();
+  if (event.target.closest(".ai-search-stop")) {
+    clearSimulation();
+    state.aiSearchStatus = "done";
+    state.aiSearchOutput += `${state.aiSearchOutput ? " " : ""}已停止生成（静态演示）。`;
+    renderAiSearchResults();
+  }
+
+  if (event.target.closest(".article-ai-open")) {
+    state.articleAiExpanded = true;
+    renderArticleAiState();
+    document.querySelector("#article-ai-body")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => document.querySelector("#article-ai-input")?.focus(), 180);
+  }
+
+  if (event.target.closest(".article-ai-toggle")) {
+    state.articleAiExpanded = !state.articleAiExpanded;
+    renderArticleAiState();
+  }
+
+  if (event.target.closest(".article-summary-action")) startArticleAi("总结这篇文章");
+  if (event.target.closest(".article-ai-regenerate")) startArticleAi(state.articleAiPrompt || "总结这篇文章");
+  if (event.target.closest(".article-ai-stop")) stopArticleAi();
+  if (event.target.closest(".article-ai-clear")) {
+    clearSimulation();
+    state.articleAiStatus = "idle";
+    state.articleAiOutput = "";
+    state.articleAiPrompt = "";
+    renderArticleAiState();
+  }
 
   const themeToggle = event.target.closest(".theme-toggle");
   if (themeToggle) {
@@ -528,6 +821,10 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("[data-close-search]")) closeLayer(searchOverlay);
   if (event.target.closest("[data-close-filter]")) closeLayer(filterSheet);
   if (event.target.closest("[data-close-toc]")) closeLayer(tocDrawer);
+  if (event.target.closest("[data-close-ai-settings]")) {
+    state.pendingAiAction = null;
+    closeLayer(aiSettingsOverlay);
+  }
 
   const categoryButton = event.target.closest("[data-category]");
   if (categoryButton) {
@@ -571,8 +868,10 @@ document.addEventListener("click", (event) => {
 document.addEventListener("input", (event) => {
   if (event.target === searchInput) {
     state.searchIndex = -1;
-    window.clearTimeout(searchInput.debounceTimer);
-    searchInput.debounceTimer = window.setTimeout(renderSearchResults, 150);
+    if (state.searchMode === "keyword") {
+      window.clearTimeout(searchInput.debounceTimer);
+      searchInput.debounceTimer = window.setTimeout(renderSearchResults, 150);
+    }
   }
   if (event.target.matches("#local-search")) {
     state.localQuery = event.target.value;
@@ -607,11 +906,65 @@ document.querySelector("#apply-filter").addEventListener("click", () => {
   document.querySelector(".filter-trigger")?.focus();
 });
 
+document.querySelector("#clear-ai-settings").addEventListener("click", () => {
+  state.aiConfigured = false;
+  state.aiConfig = { baseUrl: "", model: "", rememberKey: false };
+  aiSettingsForm.reset();
+  aiSettingsStatus.textContent = "演示配置已清除";
+  updateAiIndicators();
+  renderArticleAiState();
+});
+
+document.querySelector("#test-ai-settings").addEventListener("click", () => {
+  const baseUrl = aiSettingsForm.elements.baseUrl.value.trim();
+  const apiKey = aiSettingsForm.elements.apiKey.value.trim();
+  const model = aiSettingsForm.elements.model.value.trim();
+  if (!baseUrl || (!apiKey && !state.aiConfigured) || !model) {
+    aiSettingsStatus.textContent = "请填写三个示例必填项；不要使用真实密钥";
+    return;
+  }
+  aiSettingsStatus.textContent = "正在连接…（静态演示）";
+  window.setTimeout(() => {
+    aiSettingsStatus.textContent = "连接成功（演示），没有发送网络请求";
+  }, 650);
+});
+
 document.addEventListener("submit", (event) => {
-  if (!event.target.matches("#prototype-note-form")) return;
-  event.preventDefault();
-  const value = event.target.querySelector("textarea").value.trim();
-  showToast(value ? "设计稿演示：正式版将通过 GitHub 提交笔记" : "请先写下一点内容");
+  if (event.target.matches("#ai-settings-form")) {
+    event.preventDefault();
+    const baseUrl = aiSettingsForm.elements.baseUrl.value.trim();
+    const apiKey = aiSettingsForm.elements.apiKey.value.trim();
+    const model = aiSettingsForm.elements.model.value.trim();
+    if (!baseUrl || (!apiKey && !state.aiConfigured) || !model) {
+      aiSettingsStatus.textContent = "请填写三个示例必填项；不要使用真实密钥";
+      return;
+    }
+    state.aiConfigured = true;
+    state.aiConfig = { baseUrl, model, rememberKey: aiSettingsForm.elements.rememberKey.checked };
+    aiSettingsForm.elements.apiKey.value = "";
+    const pendingAction = state.pendingAiAction;
+    state.pendingAiAction = null;
+    closeLayer(aiSettingsOverlay, pendingAction?.kind !== "search");
+    updateAiIndicators();
+    showToast("演示配置已保存，仅保存在当前页面内存");
+    resumePendingAi(pendingAction);
+    return;
+  }
+  if (event.target.matches("#article-ai-form")) {
+    event.preventDefault();
+    const question = event.target.querySelector("input").value.trim();
+    if (!question) {
+      showToast("请先输入一个关于当前文章的问题");
+      return;
+    }
+    startArticleAi(question);
+    return;
+  }
+  if (event.target.matches("#prototype-note-form")) {
+    event.preventDefault();
+    const value = event.target.querySelector("textarea").value.trim();
+    showToast(value ? "设计稿演示：正式版将通过 GitHub 提交笔记" : "请先写下一点内容");
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -627,11 +980,14 @@ document.addEventListener("keydown", (event) => {
     document.querySelector("#local-search")?.focus();
   }
   if (event.key === "Escape") {
-    if (!searchOverlay.hidden) closeLayer(searchOverlay);
+    if (!aiSettingsOverlay.hidden) {
+      state.pendingAiAction = null;
+      closeLayer(aiSettingsOverlay);
+    } else if (!searchOverlay.hidden) closeLayer(searchOverlay);
     else if (!filterSheet.hidden) closeLayer(filterSheet);
     else if (!tocDrawer.hidden) closeLayer(tocDrawer);
   }
-  if (!searchOverlay.hidden && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+  if (!searchOverlay.hidden && state.searchMode === "keyword" && ["ArrowDown", "ArrowUp"].includes(event.key)) {
     event.preventDefault();
     const results = filteredSearchRecords();
     if (!results.length) return;
@@ -644,11 +1000,17 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     searchResults.querySelector(`[data-search-index="${state.searchIndex}"]`)?.click();
   }
+  if (!searchOverlay.hidden && state.searchMode === "ai" && event.key === "Enter" && event.target === searchInput) {
+    event.preventDefault();
+    startAiSearch();
+  }
 });
 
 window.addEventListener("hashchange", () => {
+  clearSimulation();
   closeLayer(searchOverlay);
   render();
 });
 
+updateAiIndicators();
 render();

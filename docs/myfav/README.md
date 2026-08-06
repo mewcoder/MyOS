@@ -14,7 +14,7 @@ MyFav 是网站、GitHub 仓库和文章的统一内容仓库，也是 GitHub Pa
 - 网站和 GitHub 仓库使用轻量 JSON 数组；文章使用 JSON 导航数据和 Markdown 全文。
 - 文章图片下载到本地，与 Markdown 放在同一个月份目录中并提交 Git。
 - GitHub Issues 管理笔记、阅读过程和学习结论，不把这些状态写入内容文件。
-- GitHub Pages 只托管构建后的静态网站；v1 不使用数据库、Cloudflare、R2 或动态 API。
+- GitHub Pages 只托管构建后的静态网站；v1 不使用数据库、Cloudflare、R2 或自建动态 API。可选 AI 能力由浏览器使用用户自己的 OpenAI-compatible API 配置直接调用。
 
 ## 2. 边界与职责
 
@@ -338,6 +338,7 @@ MyFav
 - GitHub Actions 在 push 后执行构建并将 `dist/` 发布到 GitHub Pages。
 - MyOS 可立即 commit，但 push 应合并节流，避免连续收藏触发大量构建。
 - `fav` 首版默认只 commit，不自动 push；显式同步或后续批处理再执行 push。
+- [浏览器 AI](./ai.md) 是可选增强：未配置 API 时，列表、关键词搜索、文章阅读和笔记仍完整可用。
 
 ## 9. 一致性与校验
 
@@ -392,6 +393,8 @@ v1 明确不包含：
 - 自动把所有 Issues 发布成博客。
 - 选中文字后的行内批注。
 - 在文章列表聚合 Issue 笔记数量。
+- 在静态站中内置共享 API Key 或代理服务。
+- 依赖 embeddings、向量数据库、Responses API 或工具调用。
 
 ## 13. 验收场景
 
@@ -418,5 +421,6 @@ v1 明确不包含：
 | MyFav 数据校验与写入脚本 | 已实现于 `src/fav/store.ts` |
 | [`fav` Skill 与 MyOS → MyFav 写入接口](./fav.md) | 已实现 |
 | [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 第一版设计稿待确认 |
+| [OpenAI-compatible 浏览器 AI](./ai.md) | 第一版设计与交互原型待确认 |
 | Utterances 笔记组件 | 本文已定义外部契约，待实现 |
 | GitHub Issues 到博客的整理流程 | 待设计 |
