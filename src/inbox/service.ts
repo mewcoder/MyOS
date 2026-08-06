@@ -1,6 +1,7 @@
 /** Inbox capture pipeline: URL → fetch → extract → summarise → archive → git. */
 
 import { fetchViaHttp, fetchViaBrowser, HttpError, type FetchVia } from "./fetch.js";
+import { fetchViaDefuddle } from "./defuddle.js";
 import { extractArticle, isThin, type ExtractedArticle } from "./extract.js";
 import { findAdapter, classifySource } from "./sites.js";
 import { summarize } from "./summarize.js";
@@ -68,7 +69,7 @@ export class InboxService {
    *  Declared JS-only site → straight to the browser. */
   private async fetchAndExtract(
     url: string,
-  ): Promise<{ article: ExtractedArticle; finalUrl: string; via: FetchVia }> {
+  ): Promise<{ article: ExtractedArticle; finalUrl: string; via: FetchVia | "defuddle" }> {
     const adapter = findAdapter(url);
 
     if (adapter?.browserOnly) {
@@ -96,6 +97,16 @@ export class InboxService {
       if (err instanceof HttpError && !err.worthRetryingInBrowser) throw err;
       httpError = err;
       logger.log("inbox_fetch_http_failed", { url, error: String(err) });
+    }
+
+    try {
+      const article = await fetchViaDefuddle(url);
+      if (article && !isThin(article)) {
+        return { article, finalUrl: url, via: "defuddle" };
+      }
+      logger.log("inbox_fetch_defuddle_thin", { url, chars: article?.text.trim().length ?? 0 });
+    } catch (err) {
+      logger.log("inbox_fetch_defuddle_failed", { url, error: String(err) });
     }
 
     try {
