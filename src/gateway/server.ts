@@ -60,6 +60,7 @@ export class Gateway {
       defaultModel: config.agent.defaultModel,
       workspaceDir,
       thinkingLevel: config.agent.thinkingLevel,
+      skillDir: expandHome(config.agent.skillDir),
     });
 
     const gateway = new Gateway(config, agent, sessions);
@@ -113,8 +114,8 @@ export class Gateway {
   /** Serialize message processing per channel:user — concurrent prompts to the
    *  same Pi session would interleave their streamed responses.
    *
-   *  Slash commands bypass the queue: /stop must act while the agent is busy,
-   *  not after the running task finishes. */
+   *  Control commands bypass the queue so /stop can act while the agent is
+   *  busy. /save is translated to $fav and deliberately re-enters the queue. */
   private handleMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
     if (event.content.startsWith("/")) {
       return this.handleCommand(event, channel).catch((err) => {
@@ -122,16 +123,11 @@ export class Gateway {
       });
     }
 
-    // A message that is essentially just a link is an inbox capture, not a
-    // question about the link. Capture bypasses the agent queue — it never
-    // touches the Pi session, and archiving shouldn't wait on a running chat.
-    const capture = parseCapture(event.content);
-    if (capture && (capture.note?.length ?? 0) <= 40) {
-      return this.handleCapture(event, channel, capture.url, capture.note).catch((err) => {
-        process.stderr.write(`[gateway] capture error: ${err}\n`);
-      });
-    }
+    return this.queueAgentMessage(event, channel);
+  }
 
+  /** Serialize an ordinary or fav-translated message through its Pi session. */
+  private queueAgentMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
     const key = `${event.channel}:${event.userId}`;
     const prev = this.queues.get(key) ?? Promise.resolve();
     const next = prev
@@ -219,44 +215,11 @@ export class Gateway {
     "/new — 重置会话，清空上下文重新开始（同 /reset）",
     "/stop — 中断当前正在执行的任务",
     "/status — 查看会话状态",
-    "/save <链接> — 强制收藏该链接",
+    "/save <链接> — 通过 fav 收藏到本地 MyFav",
     "/inbox — 查看收藏统计与最近条目",
     "",
-    "直接发链接即可自动收藏；其他消息发给 AI 助手。",
+    "直接发链接会交给 fav；其他消息发给 AI 助手。",
   ].join("\n");
-
-  /** Fetch, archive and acknowledge a captured link. */
-  private async handleCapture(
-    event: MessageEvent,
-    channel: ChannelAdapter,
-    url: string,
-    note?: string,
-  ): Promise<void> {
-    process.stdout.write(`[gateway] ${event.channel}:${event.userId} → capture ${url}\n`);
-    await channel.send(event.userId, { text: "📥 正在抓取…" });
-
-    const result = await this.inbox.capture(url, note);
-
-    if (result.status === "duplicate") {
-      await channel.send(event.userId, {
-        text: `📎 已经收藏过了：《${result.item!.title}》\n收藏于 ${result.item!.captured.slice(0, 10)}`,
-      });
-      return;
-    }
-
-    if (result.status === "failed") {
-      await channel.send(event.userId, { text: `❌ 抓取失败：${result.error}` });
-      return;
-    }
-
-    const item = result.item!;
-    const lines = [`✅ 已收藏《${item.title}》`];
-    if (item.author) lines.push(`作者：${item.author}`);
-    if (item.summary) lines.push("", item.summary);
-    if (item.tags.length) lines.push("", `🏷 ${item.tags.join(" / ")}`);
-    if (!result.pushed) lines.push("", "（已存本地，尚未推送到远程）");
-    await channel.send(event.userId, { text: lines.join("\n") });
-  }
 
   private async handleCommand(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
     const command = event.content.slice(1).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
@@ -319,18 +282,22 @@ export class Gateway {
           await reply("用法：/save <链接>");
           return;
         }
-        await this.handleCapture(event, channel, capture.url, capture.note?.replace(/^\/save\s*/, ""));
+        const note = capture.note?.replace(/^\/save\s*/, "").trim();
+        await this.queueAgentMessage({
+          ...event,
+          content: `$fav ${capture.url}${note ? `\n${note}` : ""}`,
+        }, channel);
         return;
       }
 
       case "inbox": {
         const stats = await this.inbox.stats();
         if (stats.total === 0) {
-          await reply("收藏夹还是空的 —— 直接发一条文章链接就能收藏。");
+          await reply("旧 Inbox 为空。新收藏请直接发送链接，它会通过 fav 写入 MyFav。");
           return;
         }
         const lines = [
-          `📚 共 ${stats.total} 篇，本周（${stats.week}）${stats.thisWeek} 篇`,
+          `📚 旧 Inbox 共 ${stats.total} 篇，本周（${stats.week}）${stats.thisWeek} 篇`,
           "",
           "最近收藏：",
           ...stats.recent.map((i) => `· ${i.title}`),
