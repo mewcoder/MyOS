@@ -1,6 +1,6 @@
 # MyFav 内容库设计
 
-> 状态：采集闭环已实现，展示与笔记待实现  
+> 状态：采集与静态网站实现已完成，第三方服务联机待部署验证
 > 目标仓库：[mewcoder/myfav](https://github.com/mewcoder/myfav)  
 > 采集端：MyOS
 
@@ -420,7 +420,7 @@ v1 明确不包含：
 |---|---|
 | MyFav 数据校验与写入脚本 | 已实现于 `src/fav/store.ts` |
 | [`fav` Skill 与 MyOS → MyFav 写入接口](./fav.md) | 已实现 |
-| [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 设计原型已确认，可进入正式实现 |
-| [OpenAI-compatible 浏览器 AI](./ai.md) | 设计原型已确认，可进入正式实现 |
-| Utterances 笔记组件 | 本文已定义外部契约，待实现 |
+| [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 已实现于 `mewcoder/myfav` |
+| [OpenAI-compatible 浏览器 AI](./ai.md) | 已实现于 `mewcoder/myfav` |
+| Utterances 笔记组件 | 已实现；GitHub App、Issues 与联机状态待部署验证 |
 | GitHub Issues 到博客的整理流程 | 待设计 |

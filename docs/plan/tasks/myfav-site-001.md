@@ -1,7 +1,7 @@
 ---
 id: myfav-site-001
 scope: myfav-production-site
-status: in-progress
+status: done
 depends-on: [myfav-ai-001, myfav-ui-003]
 ---
 

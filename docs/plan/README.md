@@ -1,11 +1,10 @@
 # 交付计划
 
-当前活动任务：
-
-- [`myfav-site-001`](./tasks/myfav-site-001.md)（in-progress）：在 `mewcoder/myfav` 正式实现静态内容站、文章阅读、搜索、浏览器 AI 与 GitHub Pages 发布闭环。
+当前没有活动任务。
 
 已完成任务：
 
+- [`myfav-site-001`](./tasks/myfav-site-001.md)（done）：在 `mewcoder/myfav` 完成静态内容站、文章阅读、搜索、浏览器 AI 与 GitHub Pages 发布闭环。
 - [`myfav-ai-001`](./tasks/myfav-ai-001.md)（done）：完成 AI 设置、单 JSON 数据问答、文章 Markdown 通用问答与居中阅读布局原型。
 - [`myfav-ui-003`](./tasks/myfav-ui-003.md)（done）：网站列表在 desktop/tablet 统一使用两列。
 - [`myfav-ui-002`](./tasks/myfav-ui-002.md)（done）：网站 desktop 三列/tablet 两列、GitHub 双列，并将首页改为全宽最近收录。
