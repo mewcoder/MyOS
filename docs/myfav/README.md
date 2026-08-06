@@ -420,7 +420,7 @@ v1 明确不包含：
 |---|---|
 | MyFav 数据校验与写入脚本 | 已实现于 `src/fav/store.ts` |
 | [`fav` Skill 与 MyOS → MyFav 写入接口](./fav.md) | 已实现 |
-| [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 第一版设计稿待确认 |
-| [OpenAI-compatible 浏览器 AI](./ai.md) | 第一版设计与交互原型待确认 |
+| [MyFav 网站布局与文章 Markdown 渲染](./site-layout.md) | 设计原型已确认，可进入正式实现 |
+| [OpenAI-compatible 浏览器 AI](./ai.md) | 设计原型已确认，可进入正式实现 |
 | Utterances 笔记组件 | 本文已定义外部契约，待实现 |
 | GitHub Issues 到博客的整理流程 | 待设计 |

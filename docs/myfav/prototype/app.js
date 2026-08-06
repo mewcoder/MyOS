@@ -139,7 +139,6 @@ const aiContextMeta = {
 const state = {
   route: "home",
   category: "全部",
-  localQuery: "",
   tag: "",
   searchType: "all",
   searchMode: "keyword",
@@ -271,18 +270,10 @@ function renderCollection() {
   const categories = categoryData(source);
   const tags = tagData(source).slice(0, 8);
   const categoryFiltered = state.category === "全部" ? source : source.filter((item) => item.category === state.category);
-  const query = state.localQuery.trim().toLowerCase();
-  const shown = categoryFiltered.filter((item) => {
-    const matchesQuery = !query || [item.title, item.description, item.category, ...item.tags].join(" ").toLowerCase().includes(query);
-    return matchesQuery && (!state.tag || item.tags.includes(state.tag));
-  });
+  const shown = categoryFiltered.filter((item) => !state.tag || item.tags.includes(state.tag));
 
   main.innerHTML = `
     <div class="page-shell collection-page">
-      <header class="page-heading">
-        <div><h1>${meta.title}</h1><p>${meta.description}</p></div>
-        <span class="item-count">${meta.total} ${meta.type === "all" ? "items" : "条"}</span>
-      </header>
       <div class="collection-layout">
         <aside class="category-rail" aria-label="分类与标签">
           <div class="category-list">${categoryButtons(categories)}</div>
@@ -291,14 +282,11 @@ function renderCollection() {
             <div class="tag-links">${tags.map((tag) => `<button class="tag-link" type="button" data-tag="${escapeHtml(tag)}" aria-pressed="${state.tag === tag}">${escapeHtml(tag)}</button>`).join("")}</div>
           </section>
         </aside>
-        <section class="collection-main" aria-label="收藏列表">
+        <section class="collection-main" aria-labelledby="collection-title">
+          <h1 class="sr-only" id="collection-title">${meta.title}</h1>
           <div class="mobile-category-strip" aria-label="分类筛选">${categoryButtons(categories)}</div>
           <div class="local-tools">
-            <label class="local-search-label">
-              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
-              <span class="sr-only">搜索当前列表</span>
-              <input id="local-search" type="search" value="${escapeHtml(state.localQuery)}" placeholder="搜索当前列表…" autocomplete="off" />
-            </label>
+            <p class="collection-context"><strong>${state.category === "全部" ? meta.title : escapeHtml(state.category)}</strong><span>${shown.length} / ${source.length}</span></p>
             <button class="filter-trigger ${state.tag ? "has-filter" : ""}" type="button" aria-haspopup="dialog">筛选${state.tag ? ` · ${escapeHtml(state.tag)}` : ""}</button>
           </div>
           <div class="collection-list collection-list--${meta.type}" id="visible-collection">
@@ -358,6 +346,9 @@ function renderArticle() {
       <div class="article-toolbar">
         <a class="back-link" href="#/articles"><span aria-hidden="true">←</span> 返回文章</a>
         <div class="article-mobile-actions">
+          <button class="icon-button article-search-trigger search-trigger" type="button" aria-haspopup="dialog" aria-label="打开搜索与 AI 数据问答">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"></circle><path d="m16 16 4.1 4.1"></path></svg>
+          </button>
           <button class="toc-trigger" type="button" aria-haspopup="dialog">目录 <span aria-hidden="true">≡</span></button>
           <button class="icon-button article-theme-toggle theme-toggle" type="button" aria-label="切换至深色主题">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"></path></svg>
@@ -365,16 +356,20 @@ function renderArticle() {
         </div>
       </div>
       <article class="article-layout">
-        <aside class="article-toc" aria-label="本文目录"><div class="article-toc-inner"><p class="eyebrow">本文目录</p>${tocLinks()}</div></aside>
         <div class="article-reading-flow">
           <header class="article-header">
             <p class="article-kicker">Agent 开发 · <time datetime="2026-08-01">2026-08-01</time></p>
             <h1>如何构建可靠的 Agent Skill</h1>
             <p class="article-deck">一份关于工作流、数据边界与验证方式的实践。Skill 不应只是更长的提示词，而应是一条可以被理解、执行和检查的路径。</p>
-            <div class="article-byline"><span>Cloudflare</span><span aria-hidden="true">·</span><button class="text-button article-ai-open" type="button">问 AI</button><span aria-hidden="true">·</span><a href="https://github.com/cloudflare/skills" target="_blank" rel="noreferrer">阅读原文 ↗</a></div>
+            <div class="article-byline"><span>Cloudflare</span><span aria-hidden="true">·</span><a href="https://github.com/cloudflare/skills" target="_blank" rel="noreferrer">阅读原文 ↗</a></div>
             <div class="article-tags" aria-label="文章标签"><span>AI</span><span>skill</span><span>workflow</span></div>
           </header>
-          ${articleAiMarkup()}
+          <aside class="article-toc" aria-label="文章目录与 AI 工具">
+            <div class="article-toc-inner">
+              <div class="article-toc-section"><p class="eyebrow">本文目录</p>${tocLinks()}</div>
+              ${articleAiMarkup()}
+            </div>
+          </aside>
           <div class="article-body">
             <p>一个可靠的 Skill，首先要让 Agent 知道什么时候使用它，然后才是如何使用。触发条件、输入边界、失败方式和最终产物，都应当在行动发生之前变得清楚。</p>
             <blockquote>把 Skill 当作一份可执行的工作约定：它约束判断，也给执行留下空间。</blockquote>
@@ -441,7 +436,6 @@ function renderArticle() {
 function render() {
   state.route = parseRoute();
   state.category = "全部";
-  state.localQuery = "";
   state.tag = "";
   const isArticle = state.route === "article";
   document.body.classList.toggle("is-article", isArticle);
@@ -509,9 +503,25 @@ function trapLayerFocus(event, layer) {
 
 function openSearch(trigger) {
   openLayer(searchOverlay, trigger);
+  state.searchType = defaultSearchType();
+  state.aiSource = defaultAiSource();
   state.searchIndex = -1;
   updateSearchModeUI();
   window.setTimeout(() => searchInput.focus(), 20);
+}
+
+function currentSearchTrigger() {
+  if (state.route === "article" && window.matchMedia("(max-width: 767px)").matches) {
+    return document.querySelector(".article-search-trigger");
+  }
+  return document.querySelector(".site-header .search-trigger");
+}
+
+function defaultSearchType() {
+  if (state.route === "sites") return "site";
+  if (state.route === "repos") return "repo";
+  if (["articles", "article"].includes(state.route)) return "article";
+  return "all";
 }
 
 function defaultAiSource() {
@@ -527,6 +537,9 @@ function updateSearchModeUI() {
   });
   keywordSearchControls.hidden = isAiMode;
   aiSearchControls.hidden = !isAiMode;
+  document.querySelectorAll("[data-search-type]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.searchType === state.searchType));
+  });
   searchInput.placeholder = isAiMode ? "向选中的完整 JSON 文件提问…" : "搜索网站、GitHub 和文章…";
   document.querySelectorAll("[data-ai-source]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.aiSource === state.aiSource));
@@ -582,7 +595,7 @@ function startAiSearch() {
   if (!state.aiConfigured) {
     state.pendingAiAction = { kind: "search" };
     closeLayer(searchOverlay, false);
-    openAiSettings(document.querySelector(".ai-settings-trigger"));
+    openAiSettings(currentSearchTrigger());
     return;
   }
   const context = aiContextMeta[state.aiSource];
@@ -682,7 +695,7 @@ function resumePendingAi(action) {
   if (!action) return;
   if (action.kind === "search") {
     state.searchMode = "ai";
-    openSearch(document.querySelector(".search-trigger"));
+    openSearch(currentSearchTrigger());
     window.setTimeout(startAiSearch, 40);
   } else if (action.kind === "article") {
     startArticleAi(action.prompt);
@@ -859,7 +872,6 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-clear-list]")) {
     state.category = "全部";
-    state.localQuery = "";
     state.tag = "";
     renderCollection();
   }
@@ -872,14 +884,6 @@ document.addEventListener("input", (event) => {
       window.clearTimeout(searchInput.debounceTimer);
       searchInput.debounceTimer = window.setTimeout(renderSearchResults, 150);
     }
-  }
-  if (event.target.matches("#local-search")) {
-    state.localQuery = event.target.value;
-    const caretPosition = event.target.selectionStart;
-    renderCollection();
-    const nextInput = document.querySelector("#local-search");
-    nextInput.focus();
-    nextInput.setSelectionRange(caretPosition, caretPosition);
   }
 });
 
@@ -973,11 +977,11 @@ document.addEventListener("keydown", (event) => {
   if (modal && event.key === "Tab") trapLayerFocus(event, modal);
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    if (!modal && searchOverlay.hidden) openSearch(document.querySelector(".search-trigger"));
+    if (!modal && searchOverlay.hidden) openSearch(currentSearchTrigger());
   }
   if (event.key === "/" && !isTyping && ["sites", "repos", "articles", "all"].includes(state.route)) {
     event.preventDefault();
-    document.querySelector("#local-search")?.focus();
+    openSearch(document.querySelector(".site-header .search-trigger"));
   }
   if (event.key === "Escape") {
     if (!aiSettingsOverlay.hidden) {

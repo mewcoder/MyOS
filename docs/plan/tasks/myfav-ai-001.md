@@ -29,8 +29,10 @@ depends-on: [myfav-ui-003]
 - 设置字段仅为 `baseUrl`、`apiKey`、`model`、`rememberKey`。
 - 原型 UI 必须明确“演示，不会发送网络请求”，不得调用 fetch/XHR/WebSocket。
 - 关键词搜索与 AI 问答是两个模式；AI 模式必须选择 sites/repos/articles 中一个，不提供 all。
-- 文章 AI 位于元信息和正文之间，支持自由问题、总结快捷操作、折叠、重新生成、停止的演示状态。
-- 标题、元信息、文章 AI 与正文位于同一视口居中的稳定阅读列；desktop 目录独立侧置且不挤压正文，tablet/mobile 使用折叠目录。
+- 文章 AI 支持自由问题、总结快捷操作、折叠、重新生成、停止的演示状态；desktop 位于目录下方的同一侧栏，tablet/mobile 位于元信息和正文之间。
+- 标题、元信息与正文位于同一视口居中的稳定阅读列；desktop 目录与文章 AI 独立侧置且不挤压正文，tablet/mobile 使用折叠目录。
+- 图片严格限制在正文列内，不使用横向 breakout。
+- 列表页不显示占空间的大标题；全站搜索与 AI 数据问答统一从头部常驻搜索框进入。
 - Desktop 设置使用 modal，mobile 使用全屏层。
 - 新 modal 复用现有 focus trap、inert、Esc 和焦点恢复机制。
 - 不增加依赖，不 build/lint，不自动操作浏览器。
