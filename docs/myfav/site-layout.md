@@ -1,6 +1,6 @@
 # MyFav 网站布局设计稿
 
-> 状态：静态设计稿已完成，待视觉与信息架构确认  
+> 状态：视觉与信息架构已确认，可进入正式实现
 > 范围：首页、网站列表、GitHub 列表、文章列表、文章详情、全局搜索、移动端导航
 > 设计稿：[打开静态交互原型](./prototype/index.html)
 
@@ -349,7 +349,7 @@ Desktop overlay                           Mobile full screen
 | 输入 | 范围 | 行为 |
 |---|---|---|
 | `⌘/Ctrl + K` | 全站 | 打开全局搜索 |
-| `/` | 非输入状态 | 聚焦当前列表搜索 |
+| `/` | 非输入状态 | 打开全局搜索 |
 | `Esc` | 搜索、drawer、sheet | 关闭并恢复触发点 focus |
 | `Enter` | 聚焦列表行 | 打开站内详情或外链 |
 | `Tab` | 全站 | 按视觉顺序遍历可交互元素 |
@@ -363,33 +363,38 @@ Desktop overlay                           Mobile full screen
 
 ```text
 AppShell
-├── DesktopHeader
-├── MobileHeader
+├── Header
+│   ├── PrimaryNav
+│   ├── HeaderSearch
+│   └── AISettingsTrigger / ThemeToggle
 ├── MobileBottomNav
 ├── GlobalSearch
+│   ├── KeywordSearch
+│   └── JSONQuestionAnswering
+├── AISettings
 └── RouterView
     ├── HomePage
-    │   ├── LibraryIntro
     │   └── RecentFeed
     ├── CollectionPage
-    │   ├── PageHeading
     │   ├── CategoryRail / MobileCategoryStrip
-    │   ├── LocalSearch
+    │   ├── CollectionContext
     │   ├── FilterSheet
     │   └── CollectionList
     └── ArticlePage
         ├── ArticleHeader
-        ├── ArticleToc / TocDrawer
+        ├── ArticleSideRail
+        │   ├── ArticleToc / TocDrawer
+        │   └── ArticleAssistant
         ├── MarkdownBody
         └── ArticleNotes
 ```
 
-## 13. 设计稿验收重点
+## 13. 已确认决策
 
-第一轮只确认以下问题，不进入前端实现：
-
-1. 温暖编辑式视觉是否适合长期个人知识库。
-2. 首页采用“介绍＋最近收录”而非分类卡片墙是否符合预期。
-3. 移动端是否接受固定底部四项导航。
-4. 文章详情是否需要目录，以及 GitHub Issues 笔记放在正文末尾是否合适。
-5. 博客是否继续隐藏，等原创内容出现后再开放。
+1. 使用温暖、编辑式、无卡片墙的长期个人知识库视觉。
+2. 首页直接显示单列“最近收录”，不显示介绍 hero 或统计面板。
+3. 列表页不重复显示大标题；顶栏常驻搜索框统一承载关键词搜索与 AI 数据问答。
+4. 网站与 GitHub 在 desktop/tablet 使用两列，mobile 使用单列；文章始终使用单列。
+5. 文章正文以视口为基准居中，图片不得突破正文列；目录与文章 AI 共用左侧功能栏。
+6. 移动端保留固定底部四项导航；文章详情改用阅读工具栏与目录 drawer。
+7. 博客继续隐藏，等原创内容稳定后再开放。

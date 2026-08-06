@@ -1,6 +1,8 @@
 # 交付计划
 
-当前没有活动任务。
+当前活动任务：
+
+- [`myfav-site-001`](./tasks/myfav-site-001.md)（in-progress）：在 `mewcoder/myfav` 正式实现静态内容站、文章阅读、搜索、浏览器 AI 与 GitHub Pages 发布闭环。
 
 已完成任务：
 

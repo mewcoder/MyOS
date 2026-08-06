@@ -1,6 +1,6 @@
 # MyFav 浏览器 AI 设计
 
-> 状态：第一版，待安全边界与交互确认
+> 状态：安全边界与交互已确认，可进入正式实现
 >
 > 范围：OpenAI-compatible 配置、JSON 数据问答、文章 Markdown 问答与总结
 > 非范围：服务端代理、共享密钥、embeddings、向量数据库、Responses API
