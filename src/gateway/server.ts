@@ -60,6 +60,7 @@ export class Gateway {
       defaultModel: config.agent.defaultModel,
       workspaceDir,
       thinkingLevel: config.agent.thinkingLevel,
+      skillDir: expandHome(config.agent.skillDir),
     });
 
     const gateway = new Gateway(config, agent, sessions);
@@ -126,7 +127,8 @@ export class Gateway {
     // question about the link. Capture bypasses the agent queue — it never
     // touches the Pi session, and archiving shouldn't wait on a running chat.
     const capture = parseCapture(event.content);
-    if (capture && (capture.note?.length ?? 0) <= 40) {
+    const favIntent = /(?:\$fav|收藏|保存|收录|归档)/i.test(capture?.note ?? "");
+    if (capture && !favIntent && (capture.note?.length ?? 0) <= 40) {
       return this.handleCapture(event, channel, capture.url, capture.note).catch((err) => {
         process.stderr.write(`[gateway] capture error: ${err}\n`);
       });

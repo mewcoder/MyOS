@@ -88,6 +88,7 @@ myos
 | `workspaceDir` | | `~/.myos/workspace` | Agent 工作区，支持 `~` |
 | `thinkingLevel` | | 模型默认 | `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` |
 | `sessionDir` | | `~/.myos/data` | 会话映射存放目录，一般无需设置 |
+| `skillDir` | | 无 | 额外的本地 Skill 目录；仓库内置 `fav` 始终加载 |
 
 `providers.<id>.models[]` 中除 `id` 外都可省略，Pi SDK 会补默认值——**与默认值相同的字段不必写**：
 
@@ -152,16 +153,37 @@ npm start
 
 其他消息将直接发给 AI 助手。未知的 `/xxx` 会返回提示而不是发给模型。
 
+### MyFav：统一收藏
+
+`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。向 Agent 发送 `$fav <链接>` 或“收藏这个链接”时，Skill 会先 dry-run，再通过确定性的 CLI 写入本地 MyFav clone。v1 只 commit，不自动 push。
+
+也可以直接使用 CLI：
+
+```bash
+# 只预览：不写文件、不调用 Git
+myos fav "https://github.com/cloudflare/skills" --dry-run --json
+
+# 保存到 MYOS_FAV_DIR（默认 ~/.myos/myfav）
+myos fav "https://example.com/article" \
+  --category "技术" --tag "AI" --json
+
+# 隔离测试时写入但不 commit
+myos fav "https://example.com" --type site --repo-dir "/path/to/myfav" --no-commit
+```
+
+MyFav 必须包含 `public/data/sites.json`、`repos.json` 和 `articles.json`，三个文件的顶层均为数组。文章正文保存到 `articles/YYYY-MM/`，正文不含 frontmatter，下载成功的图片跟随文章本地化保存。
+
 ### Inbox：链接收藏
 
 **直接发一条文章链接**（可附不超过 40 字的备注），网关会自动抓取、结构化归档并回复摘要。链接后面跟长文字则视为提问，仍走 AI 助手——想强制收藏用 `/save`。
 
-抓取分两层，由**提取结果**决定升级，而不是靠域名猜测：
+抓取按结果逐层降级，由**提取结果**决定升级，而不是靠域名猜测：
 
 | 层 | 覆盖 | 说明 |
 |---|---|---|
 | HTTP | 公众号、独立博客、**X** | 约 2 秒。X 的正文在 `og:description` 里，服务端渲染，无需浏览器 |
-| 无头 Chrome | 纯客户端渲染的页面 | 仅当 HTTP 提取不足时启动；用 `playwright-core` 驱动系统 Chrome，不下载 Chromium |
+| Defuddle | HTTP 正文过薄或受限的页面 | 托管 Markdown 提取，只在本地 HTTP 不足时使用 |
+| 无头 Chrome | 纯客户端渲染的页面 | 仅当前两层都不足时启动；用 `playwright-core` 驱动系统 Chrome，不下载 Chromium |
 
 归档目录 `~/.myos/inbox/` 本身既是 git 仓库、也是 VitePress 站点源码：
 
