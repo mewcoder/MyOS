@@ -41,8 +41,8 @@ skills/fav/
 ```
 
 - Skill 名称和目录名固定为 `fav`。
-- 触发语义包括裸链接、`$fav`、`/save` 转换后的 `$fav`、收藏/保存/归档链接，以及对网站、GitHub 仓库、X、微信公众号或博客文章的收藏请求。
-- Gateway 不再把裸链接写入旧 Inbox；所有非命令消息进入 Agent，`/save` 也进入相同的 `fav` 队列。
+- 触发语义包括裸链接、`$fav`、`/fav` 转换后的 `$fav`、收藏/保存/归档链接，以及对网站、GitHub 仓库、X、微信公众号或博客文章的收藏请求。
+- Gateway 不再把裸链接写入旧 Inbox；所有非命令消息进入 Agent，`/fav` 也进入相同的 `fav` 队列。
 - `SKILL.md` 只保存执行步骤；字段契约和抓取降级规则放在 references 中按需读取。
 - MyOS 使用 Pi 的资源加载器加载仓库内置 `skills/fav`，并额外加载配置的 `skillDir`。不得继续返回空 Skills 列表。
 - 自定义 `skillDir` 不存在时记录诊断信息；内置 `fav` 仍应可用。

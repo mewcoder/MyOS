@@ -140,7 +140,7 @@ npm start
 
 ### 微信内命令
 
-以 `/` 开头的消息会被网关拦截为命令；`/save` 会转换为 `$fav` 后进入 Agent，其余控制命令即时响应：
+以 `/` 开头的消息会被网关拦截为命令；`/fav` 会转换为 `$fav` 后进入 Agent，其余控制命令即时响应：
 
 | 命令 | 说明 |
 |---|---|
@@ -148,14 +148,14 @@ npm start
 | `/new`（或 `/reset`） | 重置会话：清空上下文，新开 Pi session 重新开始 |
 | `/stop` | 中断当前正在执行的任务（agent 忙时同样立即生效，不排队） |
 | `/status` | 查看当前模型、会话 ID 与运行状态 |
-| `/save <链接>` | 通过 `fav` 收藏到本地 MyFav |
+| `/fav <链接>` | 手动触发 `fav` 收藏并同步到 MyFav |
 | `/inbox` | 查看旧 Inbox 的历史统计与最近条目 |
 
 其他消息（包括裸链接）将直接发给 AI 助手；裸链接会触发 `fav`。未知的 `/xxx` 会返回提示而不是发给模型。
 
 ### MyFav：统一收藏
 
-`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。直接发送裸链接、发送 `$fav <链接>`、使用 `/save <链接>` 或说“收藏这个链接”都会进入同一个 Skill。Skill 会先 dry-run，再通过确定性的 CLI 写入并同步 MyFav。
+`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。直接发送裸链接会自动触发；使用 `/fav <链接>` 可手动触发。说“收藏这个链接”或内部发送 `$fav <链接>` 也会进入同一个 Skill。Skill 会先 dry-run，再通过确定性的 CLI 写入并同步 MyFav。
 
 也可以直接使用 CLI：
 
@@ -175,7 +175,7 @@ CLI 默认绑定 `https://github.com/mewcoder/myfav.git`，本地目录固定为
 
 ### 旧 Inbox：只读兼容
 
-`~/.myos/inbox/` 仅保留已有历史数据和 `/inbox` 统计兼容。微信裸链接与 `/save` 都不再写入旧 Inbox，也不会触发旧 Inbox 的自动 push 路径。它的 HTTP、站点适配器、Readability、Defuddle 和无头 Chrome 提取能力继续由 `fav` 复用。
+`~/.myos/inbox/` 仅保留已有历史数据和 `/inbox` 统计兼容。微信裸链接与 `/fav` 都不再写入旧 Inbox，也不会触发旧 Inbox 的自动 push 路径。它的 HTTP、站点适配器、Readability、Defuddle 和无头 Chrome 提取能力继续由 `fav` 复用。
 
 ### 后台运行（Daemon）
 

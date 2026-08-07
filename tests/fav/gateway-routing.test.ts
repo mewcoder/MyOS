@@ -37,9 +37,9 @@ describe("Gateway fav routing", () => {
     expect((gateway as any).inbox.capture).not.toHaveBeenCalled();
   });
 
-  it("translates /save into the same queued $fav agent workflow", async () => {
+  it("translates /fav into the same queued $fav agent workflow", async () => {
     const { gateway, processMessage } = gatewayHarness();
-    await (gateway as any).handleMessage(event("/save https://example.com/article 技术"), channel());
+    await (gateway as any).handleMessage(event("/fav https://example.com/article 技术"), channel());
     expect(processMessage).toHaveBeenCalledWith(
       expect.objectContaining({ content: "$fav https://example.com/article\n技术" }),
       expect.objectContaining({ name: "wechat" }),

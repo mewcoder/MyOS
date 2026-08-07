@@ -115,7 +115,7 @@ export class Gateway {
    *  same Pi session would interleave their streamed responses.
    *
    *  Control commands bypass the queue so /stop can act while the agent is
-   *  busy. /save is translated to $fav and deliberately re-enters the queue. */
+   *  busy. /fav is translated to $fav and deliberately re-enters the queue. */
   private handleMessage(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
     if (event.content.startsWith("/")) {
       return this.handleCommand(event, channel).catch((err) => {
@@ -215,7 +215,7 @@ export class Gateway {
     "/new — 重置会话，清空上下文重新开始（同 /reset）",
     "/stop — 中断当前正在执行的任务",
     "/status — 查看会话状态",
-    "/save <链接> — 通过 fav 收藏到本地 MyFav",
+    "/fav <链接> — 手动触发 fav 收藏",
     "/inbox — 查看收藏统计与最近条目",
     "",
     "直接发链接会交给 fav；其他消息发给 AI 助手。",
@@ -276,13 +276,13 @@ export class Gateway {
         return;
       }
 
-      case "save": {
+      case "fav": {
         const capture = parseCapture(event.content);
         if (!capture) {
-          await reply("用法：/save <链接>");
+          await reply("用法：/fav <链接>");
           return;
         }
-        const note = capture.note?.replace(/^\/save\s*/, "").trim();
+        const note = capture.note?.replace(/^\/fav\s*/, "").trim();
         await this.queueAgentMessage({
           ...event,
           content: `$fav ${capture.url}${note ? `\n${note}` : ""}`,
@@ -319,7 +319,7 @@ You are a personal AI assistant running in MyOS.
 The user is messaging you via ${event.channel}.
 Respond concisely and helpfully. You have access to file and shell tools.
 Your working directory is the user's workspace.
-MyOS handles slash commands (/help, /new, /stop, /status) before they reach you —
+MyOS handles slash commands (/help, /new, /stop, /status, /fav, /inbox) before they reach you —
 if the user asks what commands exist, tell them to send /help.`;
   }
 

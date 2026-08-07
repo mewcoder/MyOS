@@ -14,7 +14,7 @@
 
 1. `Gateway.create` 把 `skillDir` 传给 `PiAdapter`。
 2. `PiAdapter.createSession` 创建并 reload `DefaultResourceLoader`，加载内置 `skills/fav` 和可选自定义目录。
-3. Gateway 将裸链接等所有非命令消息交给 Agent；`/save` 转换为 `$fav` 后进入同一 Agent 队列，不再调用旧 Inbox 写入。
+3. Gateway 将裸链接等所有非命令消息交给 Agent；`/fav` 转换为 `$fav` 后进入同一 Agent 队列，不再调用旧 Inbox 写入。
 4. `fav` Skill 调用 `myos fav --dry-run --json`，再调用正式写入。
 5. `src/index.ts` 把 `fav` 子命令交给 Fav CLI，且不启动 Gateway。
 6. Fav service 对文章复用 Inbox 的 HTTP、站点适配器、Readability、Defuddle 和浏览器层，但不复用 Inbox 的存储与 push 流程。

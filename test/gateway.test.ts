@@ -242,6 +242,8 @@ describe("Gateway", () => {
 
     await vi.waitFor(() => expect(captured.sent).toHaveLength(1));
     expect(captured.sent[0].text).toContain("可用命令");
+    expect(captured.sent[0].text).toContain("/fav <链接>");
+    expect(captured.sent[0].text).not.toContain("/save");
     expect(agentState.calls).toHaveLength(0);
     await gateway.stop();
   });

@@ -1,6 +1,6 @@
 ---
 name: fav
-description: Save and archive public websites, GitHub repositories, X posts, WeChat public-account articles, and independent blog articles into the user's local MyFav collection. Use when the user invokes $fav, sends a message containing only a public URL, or asks to 收藏、保存、收录、归档 a link; do not trigger for questions that merely mention or ask about a URL.
+description: Save and archive public websites, GitHub repositories, X posts, WeChat public-account articles, and independent blog articles into the user's MyFav collection. Use when the user invokes /fav or $fav, sends a message containing only a public URL, or asks to 收藏、保存、收录、归档 a link; do not trigger for questions that merely mention or ask about a URL.
 ---
 
 # Fav
