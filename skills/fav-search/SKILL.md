@@ -1,6 +1,6 @@
 ---
 name: fav-search
-description: Search the user's saved MyFav collection of websites, GitHub repositories, and archived articles. Use when the user asks in natural language to 帮我找、查找、搜索、找回 a previously saved item, describes a remembered article/site/repository, or asks what they have collected about a topic. Do not use for general web search or for saving a new URL.
+description: Search the user's local MyFav collection of saved websites, GitHub repositories, and archived articles. Always use when the request says 搜索收藏、查找收藏、从收藏里找、我的收藏、我收藏过, even when it also mentions GitHub, 网站, or 文章. Also use when the surrounding context clearly refers to previously saved items. Never replace a local-collection request with public GitHub or web search. Do not use when the user explicitly asks to search GitHub 上、网上、互联网、全网, or when saving a new URL.
 ---
 
 # Fav Search
