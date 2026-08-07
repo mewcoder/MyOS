@@ -53,10 +53,12 @@ GitHub Pages
 - 对本地 MyFav clone 的原子写入、commit 与合并推送。
 - 失败重试和用户反馈。
 
-MyOS 不再把 `~/.myos/inbox/` 作为最终网站数据源；现有 Inbox 的提取器和站点适配器继续复用。
+MyOS 不再把 `~/.myos/inbox/` 作为最终网站数据源，`/inbox` 命令也已移除；现有 Inbox 的提取器和站点适配器只作为内部实现继续复用。
 
 链接收藏统一由 [`fav` Skill](./fav.md) 编排。Skill 负责理解用户意图和生成极简元信息，确定性的抓取、校验与落盘由 `myos fav` 命令完成。
 微信裸链接直接进入 Agent 并自动触发 `fav`；`/fav` 用于手动触发并转换为 `$fav`。两者均不得再写入或自动 push 旧 Inbox。
+
+收藏查找由 `fav-search` Skill 编排。用户直接用自然语言描述想找的网站、GitHub 仓库或文章，无需斜杠命令；确定性搜索由 `myos fav-search` 完成。网站和仓库搜索 JSON 元信息，文章同时搜索 JSON 元信息和本地 Markdown 正文，整个过程不修改收藏数据。
 
 ## 3. 仓库结构
 

@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe("Pi skill loading", () => {
-  it("discovers built-in fav through DefaultResourceLoader and diagnoses missing custom paths", async () => {
+  it("discovers built-in MyFav skills through DefaultResourceLoader and diagnoses missing custom paths", async () => {
     const root = await mkdtemp(join(tmpdir(), "myos-resource-test-"));
     temporary.push(root);
     const cwd = join(root, "workspace");
@@ -28,6 +28,7 @@ describe("Pi skill loading", () => {
       skillDir: missing,
     });
     expect(loader.getSkills().skills.some((skill) => skill.name === "fav")).toBe(true);
+    expect(loader.getSkills().skills.some((skill) => skill.name === "fav-search")).toBe(true);
     expect(loader.getSkills().diagnostics.some((diagnostic) => diagnostic.path === missing)).toBe(true);
   });
 });

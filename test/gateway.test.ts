@@ -244,6 +244,7 @@ describe("Gateway", () => {
     expect(captured.sent[0].text).toContain("可用命令");
     expect(captured.sent[0].text).toContain("/fav <链接>");
     expect(captured.sent[0].text).not.toContain("/save");
+    expect(captured.sent[0].text).not.toContain("/inbox");
     expect(agentState.calls).toHaveLength(0);
     await gateway.stop();
   });
@@ -256,6 +257,18 @@ describe("Gateway", () => {
 
     await vi.waitFor(() => expect(captured.sent).toHaveLength(1));
     expect(captured.sent[0].text).toContain("未知命令 /foo");
+    expect(agentState.calls).toHaveLength(0);
+    await gateway.stop();
+  });
+
+  it("no longer exposes the legacy /inbox command", async () => {
+    const gateway = await Gateway.create(makeConfig());
+    await gateway.start();
+
+    captured.onMessage!(makeEvent("user-a", "/inbox"));
+
+    await vi.waitFor(() => expect(captured.sent).toHaveLength(1));
+    expect(captured.sent[0].text).toContain("未知命令 /inbox");
     expect(agentState.calls).toHaveLength(0);
     await gateway.stop();
   });

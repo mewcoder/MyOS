@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { MYFAV_DIR } from "../paths.js";
 import { FavService, type FavServiceDependencies } from "./service.js";
 import { FavError, type FavFailedResult, type FavInput, type FavKind, type FavResult } from "./types.js";
 
@@ -27,7 +28,7 @@ function expandHome(path: string): string {
 export function parseFavArgs(args: string[], env: NodeJS.ProcessEnv = process.env): ParsedFavArgs {
   let url: string | undefined;
   let type: FavKind | undefined;
-  let repoDir = env.MYOS_FAV_DIR || join(homedir(), ".myos", "myfav");
+  let repoDir = env.MYOS_FAV_DIR || MYFAV_DIR;
   let dryRun = false;
   let json = false;
   let noCommit = false;

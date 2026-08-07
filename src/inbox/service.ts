@@ -190,7 +190,7 @@ export class InboxService {
     }
   }
 
-  /** Counts for the /inbox command. */
+  /** Legacy archive counts retained for internal data migration tooling. */
   async stats(): Promise<{ total: number; thisWeek: number; week: string; recent: InboxItem[] }> {
     const items = await readIndex();
     const { isoWeek } = await import("./store.js");

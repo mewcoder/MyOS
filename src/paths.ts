@@ -46,6 +46,9 @@ export const PI_SESSIONS_DIR = join(PI_DIR, "sessions");
 export const SERVICE_DIR = join(MYOS_DIR, "service");
 export const WORKSPACE_DIR = join(MYOS_DIR, "workspace");
 
+/** Local clone of the user's fixed MyFav content repository. */
+export const MYFAV_DIR = join(MYOS_DIR, "myfav");
+
 /** Inbox archive — a git repo that doubles as the VitePress site source. */
 export const INBOX_DIR = join(MYOS_DIR, "inbox");
 export const INBOX_ITEMS_DIR = join(INBOX_DIR, "items");

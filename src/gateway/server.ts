@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { logger, preview } from "../log.js";
 import { SESSION_STORE_DIR, WORKSPACE_DIR, channelDataDir } from "../paths.js";
-import { InboxService, parseCapture } from "../inbox/service.js";
+import { parseCapture } from "../inbox/service.js";
 
 /** Expand a leading `~` to the user's home directory. */
 function expandHome(path: string | undefined): string | undefined {
@@ -32,7 +32,6 @@ export class Gateway {
   private config: GatewayConfig;
   private running = false;
   private queues = new Map<string, Promise<void>>(); // key: `${channel}:${userId}`
-  private inbox: InboxService;
 
   private constructor(
     config: GatewayConfig,
@@ -42,10 +41,6 @@ export class Gateway {
     this.config = config;
     this.agent = agent;
     this.sessions = sessions;
-    this.inbox = new InboxService({
-      providers: config.agent.providers,
-      defaultModel: config.agent.defaultModel,
-    });
   }
 
   static async create(config: GatewayConfig): Promise<Gateway> {
@@ -216,9 +211,8 @@ export class Gateway {
     "/stop — 中断当前正在执行的任务",
     "/status — 查看会话状态",
     "/fav <链接> — 手动触发 fav 收藏",
-    "/inbox — 查看收藏统计与最近条目",
     "",
-    "直接发链接会交给 fav；其他消息发给 AI 助手。",
+    "直接发链接会交给 fav；用自然语言描述可查找已有收藏。",
   ].join("\n");
 
   private async handleCommand(event: MessageEvent, channel: ChannelAdapter): Promise<void> {
@@ -290,22 +284,6 @@ export class Gateway {
         return;
       }
 
-      case "inbox": {
-        const stats = await this.inbox.stats();
-        if (stats.total === 0) {
-          await reply("旧 Inbox 为空。新收藏请直接发送链接，它会通过 fav 写入 MyFav。");
-          return;
-        }
-        const lines = [
-          `📚 旧 Inbox 共 ${stats.total} 篇，本周（${stats.week}）${stats.thisWeek} 篇`,
-          "",
-          "最近收藏：",
-          ...stats.recent.map((i) => `· ${i.title}`),
-        ];
-        await reply(lines.join("\n"));
-        return;
-      }
-
       default:
         await reply(`未知命令 /${command}，发送 /help 查看可用命令。`);
         return;
@@ -319,7 +297,7 @@ You are a personal AI assistant running in MyOS.
 The user is messaging you via ${event.channel}.
 Respond concisely and helpfully. You have access to file and shell tools.
 Your working directory is the user's workspace.
-MyOS handles slash commands (/help, /new, /stop, /status, /fav, /inbox) before they reach you —
+MyOS handles slash commands (/help, /new, /stop, /status, /fav) before they reach you —
 if the user asks what commands exist, tell them to send /help.`;
   }
 

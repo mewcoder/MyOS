@@ -12,6 +12,7 @@ import { acquireSingleInstance, forceAcquireSingleInstance, getLockHolderPid } f
 import { logger } from "./log.js";
 import { MYOS_DIR, CONFIG_PATH, channelDataDir, ensureLayout } from "./paths.js";
 import { runFavCli } from "./fav/cli.js";
+import { runFavSearchCli } from "./fav/search-cli.js";
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -132,9 +133,11 @@ const KNOWN_FLAGS = new Set([
 
 const USAGE = `Usage: myos [options]
        myos fav <url> [fav options]
+       myos fav-search <query> [search options]
 
   (no options)     start the gateway in the foreground
   fav <url>        preview or save a link to the local MyFav clone
+  fav-search       search saved sites, GitHub repositories, and articles
   --login, -l      QR code login for the wechat channel
   --install        install as a system service (autostart + crash restart)
   --uninstall      uninstall the system service
@@ -206,6 +209,10 @@ async function runLogin(): Promise<void> {
 async function main(): Promise<void> {
   if (process.argv[2] === "fav") {
     process.exitCode = await runFavCli(process.argv.slice(3));
+    return;
+  }
+  if (process.argv[2] === "fav-search") {
+    process.exitCode = await runFavSearchCli(process.argv.slice(3));
     return;
   }
 

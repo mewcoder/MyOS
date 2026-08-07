@@ -1,0 +1,7 @@
+interface:
+  display_name: "MyFav Search"
+  short_description: "Search saved websites, GitHub repositories, and archived articles"
+  default_prompt: "Use $fav-search to find a saved article, website, or GitHub repository from my MyFav collection."
+
+policy:
+  allow_implicit_invocation: true

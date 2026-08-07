@@ -21,7 +21,6 @@ function gatewayHarness() {
   Object.assign(gateway, {
     queues: new Map<string, Promise<void>>(),
     processMessage,
-    inbox: { capture: vi.fn(), stats: vi.fn() },
   });
   return { gateway, processMessage };
 }
@@ -34,7 +33,6 @@ describe("Gateway fav routing", () => {
       expect.objectContaining({ content: "https://example.com/article" }),
       expect.objectContaining({ name: "wechat" }),
     );
-    expect((gateway as any).inbox.capture).not.toHaveBeenCalled();
   });
 
   it("translates /fav into the same queued $fav agent workflow", async () => {
@@ -44,6 +42,5 @@ describe("Gateway fav routing", () => {
       expect.objectContaining({ content: "$fav https://example.com/article\n技术" }),
       expect.objectContaining({ name: "wechat" }),
     );
-    expect((gateway as any).inbox.capture).not.toHaveBeenCalled();
   });
 });

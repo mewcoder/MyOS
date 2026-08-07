@@ -149,9 +149,8 @@ npm start
 | `/stop` | 中断当前正在执行的任务（agent 忙时同样立即生效，不排队） |
 | `/status` | 查看当前模型、会话 ID 与运行状态 |
 | `/fav <链接>` | 手动触发 `fav` 收藏并同步到 MyFav |
-| `/inbox` | 查看旧 Inbox 的历史统计与最近条目 |
 
-其他消息（包括裸链接）将直接发给 AI 助手；裸链接会触发 `fav`。未知的 `/xxx` 会返回提示而不是发给模型。
+其他消息（包括裸链接）将直接发给 AI 助手；裸链接会触发 `fav`。未知的 `/xxx` 会返回提示而不是发给模型。查找收藏无需命令，直接说“帮我找一个讲 Agent Skill 的文章”或“找一下 Cloudflare 的 GitHub 仓库”即可。
 
 ### MyFav：统一收藏
 
@@ -173,9 +172,21 @@ myos fav "https://example.com" --type site --repo-dir "/path/to/myfav" --no-comm
 
 CLI 默认绑定 `https://github.com/mewcoder/myfav.git`，本地目录固定为 `~/.myos/myfav`；正常收藏无需指定仓库或目录。MyFav 必须包含 `public/data/sites.json`、`repos.json` 和 `articles.json`，三个文件的顶层均为数组。文章正文保存到 `articles/YYYY-MM/`，正文不含 frontmatter，下载成功的图片跟随文章本地化保存。
 
-### 旧 Inbox：只读兼容
+### 查找 MyFav 收藏
 
-`~/.myos/inbox/` 仅保留已有历史数据和 `/inbox` 统计兼容。微信裸链接与 `/fav` 都不再写入旧 Inbox，也不会触发旧 Inbox 的自动 push 路径。它的 HTTP、站点适配器、Readability、Defuddle 和无头 Chrome 提取能力继续由 `fav` 复用。
+`fav-search` Skill 会根据自然语言自动判断是在找网站、GitHub 仓库还是文章；未指定类型时查全部。网站和仓库搜索 JSON 元信息，文章还会搜索本地 Markdown 正文。
+
+```bash
+myos fav-search "Agent Skill" --type article --json
+myos fav-search "Cloudflare" --type repo --json
+myos fav-search "设计灵感" --json
+```
+
+搜索默认读取 `~/.myos/myfav`，本地目录缺失时会自动 clone；已有目录不会在每次搜索时 pull，也不会修改收藏数据。
+
+### 旧 Inbox：内部兼容
+
+`/inbox` 命令已经移除。`~/.myos/inbox/` 仅保留已有历史数据；微信裸链接与 `/fav` 都不再写入旧 Inbox，也不会触发旧 Inbox 的自动 push 路径。它的 HTTP、站点适配器、Readability、Defuddle 和无头 Chrome 提取能力继续由 `fav` 内部复用。
 
 ### 后台运行（Daemon）
 
