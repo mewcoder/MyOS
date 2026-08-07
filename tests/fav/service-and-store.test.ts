@@ -110,6 +110,47 @@ describe("FavService", () => {
     expect(existsSync(join(repoDir, "public", "data", "sites.json"))).toBe(true);
   });
 
+  it("upgrades an existing legacy MyFav clone before saving its first article", async () => {
+    const repoDir = await tempPath();
+    await mkdir(join(repoDir, ".git"), { recursive: true });
+    await mkdir(join(repoDir, "public", "data"), { recursive: true });
+    await Promise.all([
+      writeFile(join(repoDir, "public", "data", "sites.json"), JSON.stringify([{
+        title: "Legacy Site",
+        url: "https://legacy.example.com",
+        description: "旧网站数据",
+        category: "工具",
+        saveTime: "2026-01-01",
+      }])),
+      writeFile(join(repoDir, "public", "data", "repos.json"), JSON.stringify([{
+        name: "example/legacy",
+        url: "https://github.com/example/legacy",
+        description: "旧仓库数据",
+        tags: ["Agent"],
+        stars: 10,
+        saveTime: "2026-01-01",
+      }])),
+    ]);
+
+    const result = await new FavService({
+      now: () => new Date(2026, 7, 7),
+      fetchHttp: async (url) => ({ html: pageHtml, finalUrl: url, via: "http" }),
+      fetchDefuddle: vi.fn(),
+      fetchBrowser: vi.fn(),
+    }).capture({
+      url: "https://example.com/first-article",
+      type: "article",
+      repoDir,
+      noCommit: true,
+    });
+
+    expect(result).toMatchObject({ status: "saved", type: "article", committed: false });
+    const collections = await readCollections(repoDir);
+    expect(collections.sites[0]?.tags).toEqual([]);
+    expect(collections.repos[0]?.category).toBe("开发");
+    expect(collections.articles).toHaveLength(1);
+  });
+
   it("writes article body and localizes successful images without frontmatter", async () => {
     const repoDir = await createMyFav();
     const result = await new FavService({

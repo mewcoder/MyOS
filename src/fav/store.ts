@@ -102,6 +102,9 @@ function validateSites(value: unknown): asserts value is SiteRecord[] {
   if (!Array.isArray(value)) throw new FavError("repo_invalid", "sites.json 顶层必须是数组");
   for (const item of value) {
     if (!isObject(item)) throw new FavError("repo_invalid", "sites.json 条目必须是对象");
+    // Legacy MyFav records predate site tags. Keep reads compatible without
+    // rewriting the user's whole collection during an unrelated capture.
+    if (item.tags === undefined) item.tags = [];
     validateCommon(item, "title");
   }
 }
@@ -110,6 +113,10 @@ function validateRepos(value: unknown): asserts value is RepoRecord[] {
   if (!Array.isArray(value)) throw new FavError("repo_invalid", "repos.json 顶层必须是数组");
   for (const item of value) {
     if (!isObject(item)) throw new FavError("repo_invalid", "repos.json 条目必须是对象");
+    // Legacy repository records had tags but no broad category. Use the most
+    // conservative in-memory default until fav-organize performs a reviewed
+    // taxonomy migration.
+    if (item.category === undefined) item.category = "开发";
     validateCommon(item, "name");
     if (typeof item.stars !== "number" || !Number.isFinite(item.stars) || item.stars < 0) {
       throw new FavError("repo_invalid", "stars 必须是非负数");
@@ -470,6 +477,22 @@ export async function ensureMyFavRepo(
   }
 
   const existed = existsSync(repoDir);
+  const legacyRepo = existed && await isLegacyMyFavRepo(repoDir);
+  if (legacyRepo) {
+    if (!skipPull) {
+      const pulled = await runGit(repoDir, ["pull", "--ff-only"]);
+      if (!pulled.ok) throw new FavError("repo_invalid", `MyFav 同步失败：${pulled.output.trim()}`);
+    }
+    await initializeMissingCollections(repoDir);
+    if (!await repoExists(repoDir)) {
+      throw new FavError("repo_invalid", `旧版 MyFav 数据结构迁移失败：${repoDir}`);
+    }
+    return { cloned: false };
+  }
+
+  if (existed) {
+    throw new FavError("repo_invalid", `MyFav 目录已存在但不是有效仓库：${repoDir}`);
+  }
   await mkdir(dirname(repoDir), { recursive: true });
   const cloned = await runGit(dirname(repoDir), [
     "clone",
@@ -479,13 +502,35 @@ export async function ensureMyFavRepo(
     repoDir,
   ]);
   if (!cloned.ok) {
-    if (!existed) await rm(repoDir, { recursive: true, force: true }).catch(() => {});
+    await rm(repoDir, { recursive: true, force: true }).catch(() => {});
     throw new FavError("repo_invalid", `MyFav 自动 clone 失败：${cloned.output.trim()}`);
   }
+  await initializeMissingCollections(repoDir);
   if (!await repoExists(repoDir)) {
     throw new FavError("repo_invalid", `clone 完成，但仓库缺少 MyFav 数据文件：${repoDir}`);
   }
   return { cloned: true };
+}
+
+async function isLegacyMyFavRepo(repoDir: string): Promise<boolean> {
+  try {
+    await access(join(repoDir, ".git"));
+    const dataDir = join(repoDir, "public", "data");
+    return existsSync(join(dataDir, "sites.json")) ||
+      existsSync(join(dataDir, "repos.json")) ||
+      existsSync(join(dataDir, "articles.json"));
+  } catch {
+    return false;
+  }
+}
+
+async function initializeMissingCollections(repoDir: string): Promise<void> {
+  const dataDir = join(repoDir, "public", "data");
+  await mkdir(dataDir, { recursive: true });
+  for (const filename of ["sites.json", "repos.json", "articles.json"]) {
+    const path = join(dataDir, filename);
+    if (!existsSync(path)) await writeFile(path, "[]\n", "utf8");
+  }
 }
 
 export async function repoExists(repoDir: string): Promise<boolean> {
