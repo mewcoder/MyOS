@@ -10,8 +10,8 @@ Use only the CLI options. The CLI owns these storage records:
 Metadata rules:
 
 - Keep `description` to one useful sentence.
-- Choose exactly one non-empty category. Use `未分类` when uncertain.
-- Use a small deduplicated tag list. Do not invent a taxonomy; prefer existing labels.
+- Choose exactly one of: `AI`, `开发`, `设计`, `知识`, `工具`, `生活`. Do not create another category.
+- Use a small deduplicated tag list for concrete technologies, sources, formats, and narrow topics. Prefer existing labels.
 - Preserve the original title unless the fetched title is clearly broken.
 - `stars` is a capture-time GitHub API snapshot, not a live count.
 

@@ -8,6 +8,7 @@ import {
 } from "./store.js";
 import {
   FavError,
+  FAV_CATEGORIES,
   type FavInput,
   type FavKind,
   type FavSuccessResult,
@@ -33,9 +34,20 @@ function cleanOverride(value: string | undefined, option: string): string | unde
 }
 
 const TAG_ALIASES: Record<string, string> = {
-  skill: "skill",
-  skills: "skill",
+  "ai agent": "Agent",
+  agent: "Agent",
+  "claude-code": "Claude Code",
+  skill: "Agent Skill",
+  skills: "Agent Skill",
 };
+
+function normalizeCategory(value: string | undefined): string {
+  const category = cleanOverride(value, "--category") ?? "工具";
+  if (!FAV_CATEGORIES.some((candidate) => candidate === category)) {
+    throw new FavError("invalid_input", `--category 必须是以下固定分类之一：${FAV_CATEGORIES.join("、")}`);
+  }
+  return category;
+}
 
 export function normalizeTags(tags: string[]): string[] {
   const seen = new Set<string>();
@@ -52,8 +64,8 @@ export function normalizeTags(tags: string[]): string[] {
 }
 
 function defaultSourceTags(type: FavKind, source: string | undefined): string[] {
-  if (type === "repo") return ["github"];
-  if (source === "x") return ["x"];
+  if (type === "repo") return ["GitHub"];
+  if (source === "x") return ["X"];
   if (source === "wechat") return ["微信公众号"];
   return [];
 }
@@ -85,7 +97,7 @@ export class FavService {
     const requestedType = input.type ?? classifyKnownUrl(normalizedInput);
     const titleOverride = cleanOverride(input.title, "--title");
     const descriptionOverride = cleanOverride(input.description, "--description");
-    const category = cleanOverride(input.category, "--category") ?? "未分类";
+    const category = normalizeCategory(input.category);
     const inputTags = normalizeTags(input.tags ?? []);
 
     let collections: Awaited<ReturnType<typeof readCollections>> | undefined;

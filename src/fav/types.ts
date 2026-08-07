@@ -1,6 +1,15 @@
 export type FavKind = "site" | "repo" | "article";
 export type FavVia = "http" | "defuddle" | "browser" | "github";
 
+export const FAV_CATEGORIES = [
+  "AI",
+  "开发",
+  "设计",
+  "知识",
+  "工具",
+  "生活",
+] as const;
+
 export interface FavInput {
   url: string;
   type?: FavKind;

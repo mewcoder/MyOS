@@ -13,7 +13,7 @@ Use `myos fav` as the only mutation interface. Never edit MyFav JSON, Markdown, 
 2. Read [references/fallback-policy.md](references/fallback-policy.md) when capture fails or reports warnings. Read [references/data-contract.md](references/data-contract.md) before choosing metadata or interpreting output fields.
 3. Run `myos fav <url> --dry-run --json`. Add `--type site|repo|article` only when the user states the type explicitly.
 4. Inspect `status`, `type`, `via`, warnings, and article character/image counts. Stop and report a `failed` result; never hide `interaction_required`.
-5. Produce a short description, one category, and a few tags. Prefer vocabulary already used by MyFav when it is available. Keep `未分类` and `[]` when there is no sound basis for guessing.
+5. Produce a short description, one category, and a few concrete tags. Category must be one of `AI`, `开发`, `设计`, `知识`, `工具`, or `生活`. Put Agent, data, content, technologies, sources, formats, and narrow topics in tags instead of inventing categories.
 6. Run the final `myos fav` command with `--title`, `--description`, `--category`, and repeated `--tag` arguments. Preserve any explicit user wording.
 7. Report `saved` or `duplicate`, the detected type, title, article path when present, commit state, and warnings. Never claim that content was pushed: v1 does not push.
 
@@ -33,8 +33,8 @@ Save after reviewing the preview:
 myos fav "https://example.com/post" \
   --title "Example Post" \
   --description "A concise description" \
-  --category "开发工具" \
-  --tag "AI" --tag "skill" \
+  --category "开发" \
+  --tag "AI" --tag "Agent Skill" \
   --json
 ```
 

@@ -58,7 +58,7 @@ describe("FavService", () => {
     });
     expect(exitCode).toBe(0);
     expect(stderr).toBe("");
-    expect(JSON.parse(stdout)).toMatchObject({ status: "preview", type: "article", tags: ["skill"] });
+    expect(JSON.parse(stdout)).toMatchObject({ status: "preview", type: "article", tags: ["Agent Skill"] });
     expect(existsSync(repoDir)).toBe(false);
   });
 
@@ -95,7 +95,7 @@ describe("FavService", () => {
       url: "https://example.com/article",
       repoDir,
       noCommit: true,
-      category: "技术",
+      category: "知识",
       tags: ["Skill", "skills", "阅读"],
     });
 
@@ -103,7 +103,7 @@ describe("FavService", () => {
     if (result.status !== "saved") return;
     expect(result.path).toBe("articles/2026-08/收藏文章.md");
     expect(result.committed).toBe(false);
-    expect(result.tags).toEqual(["skill", "阅读"]);
+    expect(result.tags).toEqual(["Agent Skill", "阅读"]);
     expect(result.warnings?.some((warning) => warning.includes("two.png"))).toBe(true);
     const markdown = await readFile(join(repoDir, result.path!), "utf8");
     expect(markdown.startsWith("---")).toBe(false);
@@ -114,7 +114,7 @@ describe("FavService", () => {
     expect(articles[0]).toMatchObject({
       title: "收藏文章",
       url: "https://example.com/article",
-      category: "技术",
+      category: "知识",
       author: "作者",
       published: "2026-08-01",
       path: result.path,
@@ -129,11 +129,11 @@ describe("FavService", () => {
     await writeFile(join(repoDir, path), "正文\n");
     await writeFile(join(repoDir, "public", "data", "articles.json"), JSON.stringify([
       {
-        title: "One", url: "https://example.com/one", description: "One", category: "技术",
+        title: "One", url: "https://example.com/one", description: "One", category: "知识",
         tags: [], saveTime: "2026-08-01", path,
       },
       {
-        title: "Two", url: "https://example.com/two", description: "Two", category: "技术",
+        title: "Two", url: "https://example.com/two", description: "Two", category: "知识",
         tags: [], saveTime: "2026-08-01", path,
       },
     ]));
@@ -152,7 +152,7 @@ describe("FavService", () => {
       title: "Missing image",
       url: "https://example.com/missing-image",
       description: "Missing image",
-      category: "技术",
+      category: "知识",
       tags: [],
       saveTime: "2026-08-01",
       path,
@@ -169,7 +169,7 @@ describe("FavService", () => {
       title: "Example",
       url: "https://example.com",
       description: "Example",
-      category: "网站",
+      category: "工具",
       tags: [],
       saveTime: "2026-08-01",
     }], null, 2));
@@ -196,7 +196,7 @@ describe("FavService", () => {
       url: "https://github.com/cloudflare/skills",
       repoDir,
       noCommit: true,
-      category: "Agent 开发",
+      category: "AI",
       tags: ["skill"],
     });
     expect(result).toMatchObject({ status: "saved", type: "repo", committed: false });
@@ -205,8 +205,8 @@ describe("FavService", () => {
       name: "cloudflare/skills",
       url: "https://github.com/cloudflare/skills",
       description: "Skills for Cloudflare",
-      category: "Agent 开发",
-      tags: ["skill", "github"],
+      category: "AI",
+      tags: ["Agent Skill", "GitHub"],
       stars: 1600,
       saveTime: "2026-08-06",
     }]);

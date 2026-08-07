@@ -100,7 +100,7 @@ myfav/
     "title": "Linear",
     "url": "https://linear.app",
     "description": "项目管理工具",
-    "category": "开发工具",
+    "category": "工具",
     "tags": ["项目管理", "效率"],
     "saveTime": "2026-08-06"
   }
@@ -128,8 +128,8 @@ myfav/
     "name": "cloudflare/skills",
     "url": "https://github.com/cloudflare/skills",
     "description": "Cloudflare Agent Skills",
-    "category": "Agent 开发",
-    "tags": ["skill", "cloudflare"],
+    "category": "AI",
+    "tags": ["Agent Skill", "Cloudflare"],
     "stars": 1600,
     "saveTime": "2026-08-06"
   }
@@ -160,8 +160,8 @@ myfav/
     "title": "Cloudflare Agent Skills",
     "url": "https://example.com/article",
     "description": "介绍 Cloudflare 官方 Agent Skills",
-    "category": "Agent 开发",
-    "tags": ["AI", "skill"],
+    "category": "AI",
+    "tags": ["AI", "Agent Skill"],
     "author": "Cloudflare",
     "published": "2026-08-01",
     "saveTime": "2026-08-06",
@@ -201,11 +201,11 @@ Markdown 只保存清洗后的正文：
 ## 5. 分类与标签
 
 - `category` 是单选主分类，用于页面分组和主导航。
-- `tags` 是多选辅助标签，用于筛选、搜索和跨分类关联。
+- `category` 固定为 6 个：`AI`、`开发`、`设计`、`知识`、`工具`、`生活`，不得在写入时新增分类。
+- `tags` 是更具体的多选标签，用于记录技术、来源、内容形式和细分主题，并支持筛选、搜索和跨分类关联。
 - 三类内容都必须提供 `category` 和 `tags`。
 - 保存前对标签执行 trim、空值过滤、完全匹配去重。
-- 标签大小写和同义词规范化由写入脚本处理；例如 `Skill`、`skills` 统一为 `skill`。
-- v1 不新增独立分类数据库；写入脚本从现有数据统计分类和标签，优先复用已有名称。
+- 标签大小写和同义词规范化由写入脚本处理；例如 `Skill`、`skills` 统一为 `Agent Skill`。
 
 ## 6. GitHub Issues 笔记
 

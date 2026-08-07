@@ -78,7 +78,7 @@ myos fav <url> [options]
   "url": "https://example.com/post",
   "title": "Example Post",
   "description": "文章的一句话介绍",
-  "category": "未分类",
+  "category": "工具",
   "tags": [],
   "via": "http",
   "article": {
@@ -112,7 +112,7 @@ Skill 必须先执行一次 `--dry-run --json`，再依据预览结果补充或�
 当 Skill 没有提供覆盖值时，CLI 使用以下明确默认值：
 
 - `description`：优先页面 description；其次截取正文首段；仍不存在时使用标题。
-- `category`：`未分类`。
+- `category`：未提供时为 `工具`；正式保存时 Skill 必须从 6 个固定分类中选择。
 - `tags`：空数组；GitHub、X、微信公众号可各自补一个来源 tag。
 
 ## 5. 抓取降级链
@@ -163,7 +163,7 @@ GitHub repo ───────────────► GitHub REST API
 2. 读取需要的 reference；不要提前加载无关 reference。
 3. 执行 `myos fav <url> --dry-run --json`，有明确类型时追加 `--type`。
 4. 检查 `status`、抓取层级、正文长度、图片数和 warnings。
-5. 生成极简 `description`、一个 `category` 和少量 tags，优先复用 MyFav 现有词汇。
+5. 生成极简 `description`，从 6 个固定分类中选择一个 `category`，并用 tags 保存具体技术、来源、形式和主题。
 6. 向用户报告 interaction_required；其他情况执行正式保存命令。
 7. 返回保存类型、标题、路径或重复记录信息。不得声称未执行的 push 已完成。
 
