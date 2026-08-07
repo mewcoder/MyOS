@@ -18,6 +18,6 @@ Metadata rules:
 Result statuses:
 
 - `preview`: dry-run succeeded and wrote nothing.
-- `saved`: files were written. Check `committed` before claiming a commit exists.
+- `saved`: files were written. Check `committed` and `pushed` separately before reporting local commit or remote sync.
 - `duplicate`: normalized URL already exists; do not save again.
 - `failed`: inspect `code` and report the error.

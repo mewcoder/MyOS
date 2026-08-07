@@ -15,7 +15,7 @@ Use `myos fav` as the only mutation interface. Never edit MyFav JSON, Markdown, 
 4. Inspect `status`, `type`, `via`, warnings, and article character/image counts. Stop and report a `failed` result; never hide `interaction_required`.
 5. Produce a short description, one category, and a few concrete tags. Category must be one of `AI`, `开发`, `设计`, `知识`, `工具`, or `生活`. Put Agent, data, content, technologies, sources, formats, and narrow topics in tags instead of inventing categories.
 6. Run the final `myos fav` command with `--title`, `--description`, `--category`, and repeated `--tag` arguments. Preserve any explicit user wording.
-7. Report `saved` or `duplicate`, the detected type, title, article path when present, commit state, and warnings. Never claim that content was pushed: v1 does not push.
+7. Report `saved` or `duplicate`, the detected type, title, article path when present, `committed`, `pushed`, and warnings. Claim remote sync only when `pushed` is true.
 
 Quote every shell argument derived from page content or user text. Do not use shell interpolation or text-replacement commands to mutate data files.
 
@@ -38,7 +38,7 @@ myos fav "https://example.com/post" \
   --json
 ```
 
-Use `--repo-dir` only when the user specifies another local MyFav clone. Use `--no-commit` only for isolated tests or when explicitly requested.
+Omit `--repo-dir` for normal use. The CLI binds `mewcoder/myfav`, clones it to `~/.myos/myfav` when absent, pulls before writing, then commits and pushes. Use `--repo-dir` or `--no-commit` only for isolated tests or explicit advanced overrides.
 
 ## Guardrails
 
@@ -46,4 +46,4 @@ Use `--repo-dir` only when the user specifies another local MyFav clone. Use `--
 - Treat `duplicate` as success; do not create a second record.
 - Do not retry deterministic 404/410 responses in a browser.
 - Do not automatically open a browser during testing. Browser fallback belongs to the CLI and uses a clean, headless system Chrome only when earlier tiers fail.
-- Do not push, create cloud resources, add frontmatter, or write notes into content files.
+- Do not run Git commands directly; clone, pull, commit, and push belong to the CLI. Do not create other cloud resources, add frontmatter, or write notes into content files.

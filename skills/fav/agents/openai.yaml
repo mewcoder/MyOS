@@ -1,4 +1,4 @@
 interface:
   display_name: "Fav"
-  short_description: "收藏网站、GitHub 仓库和文章到本地 MyFav"
-  default_prompt: "Use $fav to preview and save this link to my local MyFav collection."
+  short_description: "收藏网站、GitHub 仓库和文章，并自动同步到 MyFav 远端仓库"
+  default_prompt: "Use $fav to preview, save, and sync this link to my MyFav collection."

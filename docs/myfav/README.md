@@ -336,8 +336,8 @@ MyFav
 - 文章详情使用 JSON 元信息和 Markdown 正文组合渲染。
 - 文章详情在正文后通过 Utterances 展示 GitHub Issues 笔记区。
 - GitHub Actions 在 push 后执行构建并将 `dist/` 发布到 GitHub Pages。
-- MyOS 可立即 commit，但 push 应合并节流，避免连续收藏触发大量构建。
-- `fav` 首版默认只 commit，不自动 push；显式同步或后续批处理再执行 push。
+- MyOS 首次收藏时自动 clone 绑定仓库到 `~/.myos/myfav`，之后每次正式收藏先 pull，再 commit 并 push。
+- push 会触发 GitHub Pages 构建；push 失败时保留本地 commit，并在结果中明确提示。
 - [浏览器 AI](./ai.md) 是可选增强：未配置 API 时，列表、关键词搜索、文章阅读和笔记仍完整可用。
 
 ## 9. 一致性与校验

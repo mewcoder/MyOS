@@ -15,7 +15,7 @@ fav Skill
       │
       ▼
 myos fav
-  规范化 / 抓取 / 校验 / 下载图片 / 原子写入 / commit
+  自动 clone/pull / 抓取 / 校验 / 原子写入 / commit/push
       │
       ▼
 本地 MyFav clone
@@ -24,10 +24,10 @@ myos fav
 职责边界：
 
 - Skill 负责理解“收藏网站”“保存这篇文章”等自然语言，并生成简短元信息。
-- CLI 负责网络访问、提取层级、路径规则、查重、数据校验、原子写入和 Git commit。
+- CLI 负责绑定 MyFav 远端、自动 clone/pull、网络访问、提取、数据校验、原子写入、commit 和 push。
 - Skill 不用 shell 文本替换直接修改 `sites.json`、`repos.json` 或 `articles.json`。
 - CLI 不调用大模型；未传入的分类和标签使用本文明确的保守默认值。
-- v1 不自动 push。发布同步由用户显式触发或后续批处理完成。
+- 正式收藏默认同步到远端；push 失败时保留本地 commit 并返回 warning。
 
 ## 2. Skill 结构与加载
 
@@ -62,7 +62,7 @@ myos fav <url> [options]
 | `--dry-run` | 抓取并输出候选结果，不写文件、不执行 Git |
 | `--json` | 输出机器可读 JSON，供 Skill 读取 |
 | `--type site\|repo\|article` | 覆盖自动分类 |
-| `--repo-dir <path>` | MyFav clone 路径；默认 `${MYOS_FAV_DIR}`，未设置时为 `~/.myos/myfav` |
+| `--repo-dir <path>` | 高级覆盖；正常使用固定为 `~/.myos/myfav`，不存在时自动 clone 绑定仓库 |
 | `--title <text>` | 覆盖抓取标题 |
 | `--description <text>` | 覆盖一句话介绍 |
 | `--category <text>` | 覆盖主分类 |
@@ -145,7 +145,8 @@ GitHub repo ───────────────► GitHub REST API
 - 文章先在临时目录生成 Markdown 和已下载图片，再移动到 `articles/YYYY-MM/`，最后更新 `articles.json`。
 - 图片失败时保留远程 URL，并在结果 warnings 中列出；不得让一张图片失败破坏全文。
 - commit 只包含本次 `fav` 写入涉及的路径，不使用 `git add -A`。
-- Git commit 失败不回滚已写入内容，但结果必须返回 warning；数据写入失败必须返回 typed error。
+- 正式写入前对已有 clone 执行 `git pull --ff-only`；首次使用从 `https://github.com/mewcoder/myfav.git` 自动 clone 到 `~/.myos/myfav`。
+- commit 后自动执行 `git push origin HEAD`。commit 或 push 失败不回滚已写入内容，但结果必须返回 warning；数据写入失败必须返回 typed error。
 
 错误 code：
 
@@ -165,7 +166,7 @@ GitHub repo ───────────────► GitHub REST API
 4. 检查 `status`、抓取层级、正文长度、图片数和 warnings。
 5. 生成极简 `description`，从 6 个固定分类中选择一个 `category`，并用 tags 保存具体技术、来源、形式和主题。
 6. 向用户报告 interaction_required；其他情况执行正式保存命令。
-7. 返回保存类型、标题、路径或重复记录信息。不得声称未执行的 push 已完成。
+7. 返回保存类型、标题、路径、commit 和 push 状态；仅在 `pushed: true` 时声称远端同步完成。
 
 ## 8. 验证
 
@@ -174,7 +175,7 @@ GitHub repo ───────────────► GitHub REST API
 - URL 规范化和三类识别。
 - GitHub API、HTTP 有效正文、Defuddle 降级、Chrome 降级均使用受控 fixture/mocks。
 - dry-run 零文件写入、零 Git 调用。
-- JSON 查重、原子写入、同月 slug 冲突和图片部分失败。
+- 自动 clone/pull、JSON 查重、原子写入、显式路径 commit/push、同月 slug 冲突和图片部分失败。
 - Skill frontmatter 与 `agents/openai.yaml` 通过 `quick_validate.py`。
 - Pi ResourceLoader 实际发现 `fav`，不接受仅验证文件存在。
 

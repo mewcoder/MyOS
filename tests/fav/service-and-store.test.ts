@@ -1,11 +1,11 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runFavCli } from "../../src/fav/cli.js";
+import { parseFavArgs, runFavCli } from "../../src/fav/cli.js";
 import { FavService } from "../../src/fav/service.js";
-import { readCollections } from "../../src/fav/store.js";
+import { DEFAULT_MYFAV_REMOTE, readCollections } from "../../src/fav/store.js";
 
 const temporary: string[] = [];
 
@@ -37,6 +37,10 @@ const pageHtml = `<!doctype html><html><head><title>收藏文章</title><meta na
   </article></body></html>`;
 
 describe("FavService", () => {
+  it("binds normal usage to ~/.myos/myfav without a directory argument", () => {
+    expect(parseFavArgs(["https://example.com"], {}).repoDir).toBe(join(homedir(), ".myos", "myfav"));
+  });
+
   it("exposes machine-readable myos fav dry-run output", async () => {
     const parent = await tempPath();
     const repoDir = join(parent, "missing-myfav");
@@ -75,6 +79,35 @@ describe("FavService", () => {
     expect(result.status).toBe("preview");
     expect(existsSync(repoDir)).toBe(false);
     expect(runGit).not.toHaveBeenCalled();
+  });
+
+  it("automatically clones the bound MyFav repository into the default-style directory", async () => {
+    const parent = await tempPath();
+    const repoDir = join(parent, "myfav");
+    const runGit = vi.fn(async (cwd: string, args: string[]) => {
+      if (args[0] === "clone") {
+        expect(cwd).toBe(parent);
+        expect(args).toEqual(["clone", "--origin", "origin", DEFAULT_MYFAV_REMOTE, repoDir]);
+        await mkdir(join(repoDir, "public", "data"), { recursive: true });
+        await Promise.all([
+          writeFile(join(repoDir, "public", "data", "sites.json"), "[]\n"),
+          writeFile(join(repoDir, "public", "data", "repos.json"), "[]\n"),
+          writeFile(join(repoDir, "public", "data", "articles.json"), "[]\n"),
+        ]);
+      }
+      return { ok: true, output: "ok" };
+    });
+    const result = await new FavService({
+      now: () => new Date(2026, 7, 6),
+      fetchHttp: async (url) => ({ html: pageHtml, finalUrl: url, via: "http" }),
+      fetchDefuddle: vi.fn(),
+      fetchBrowser: vi.fn(),
+      runGit,
+    }).capture({ url: "https://example.com", type: "site", repoDir, noCommit: true });
+
+    expect(result).toMatchObject({ status: "saved", committed: false, pushed: false });
+    expect(runGit).toHaveBeenCalledTimes(1);
+    expect(existsSync(join(repoDir, "public", "data", "sites.json"))).toBe(true);
   });
 
   it("writes article body and localizes successful images without frontmatter", async () => {
@@ -177,6 +210,7 @@ describe("FavService", () => {
     const result = await new FavService({ fetchHttp }).capture({
       url: "https://example.com/?utm_source=test#x",
       repoDir,
+      noCommit: true,
     });
     expect(result).toMatchObject({ status: "duplicate", type: "site", title: "Example" });
     expect(fetchHttp).not.toHaveBeenCalled();
@@ -212,7 +246,7 @@ describe("FavService", () => {
     }]);
   });
 
-  it("stages only explicit paths when committing a website", async () => {
+  it("pulls, stages explicit paths, commits, and pushes a website", async () => {
     const repoDir = await createMyFav();
     const runGit = vi.fn(async (_repoDir: string, args: string[]) => ({ ok: true, output: args.join(" ") }));
     const result = await new FavService({
@@ -222,13 +256,19 @@ describe("FavService", () => {
       fetchBrowser: vi.fn(),
       runGit,
     }).capture({ url: "https://example.com", type: "site", repoDir });
-    expect(result).toMatchObject({ status: "saved", committed: true, type: "site" });
-    expect(runGit).toHaveBeenNthCalledWith(1, repoDir, ["add", "--", "public/data/sites.json"]);
+    expect(result).toMatchObject({ status: "saved", committed: true, pushed: true, type: "site" });
+    expect(runGit).toHaveBeenNthCalledWith(1, repoDir, ["pull", "--ff-only"]);
     expect(runGit).toHaveBeenNthCalledWith(
       2,
       repoDir,
+      ["add", "--", "public/data/sites.json"],
+    );
+    expect(runGit).toHaveBeenNthCalledWith(
+      3,
+      repoDir,
       ["commit", "-m", "fav: 收藏文章", "--", "public/data/sites.json"],
     );
+    expect(runGit).toHaveBeenNthCalledWith(4, repoDir, ["push", "origin", "HEAD"]);
     expect(runGit.mock.calls.flat().flat()).not.toContain("-A");
   });
 });

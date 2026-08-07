@@ -54,13 +54,17 @@ export interface StoreInput {
 export interface StoreResult {
   path?: string;
   committed: boolean;
+  pushed: boolean;
   warnings: string[];
 }
 
 export interface StoreDependencies {
   fetchImage?: (input: string, init?: RequestInit) => Promise<Response>;
   runGit?: (repoDir: string, args: string[]) => Promise<{ ok: boolean; output: string }>;
+  repoRemote?: string;
 }
+
+export const DEFAULT_MYFAV_REMOTE = "https://github.com/mewcoder/myfav.git";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -337,12 +341,14 @@ async function commitPaths(
   paths: string[],
   title: string,
   runGit: NonNullable<StoreDependencies["runGit"]>,
-): Promise<{ committed: boolean; warning?: string }> {
+): Promise<{ committed: boolean; pushed: boolean; warning?: string }> {
   const added = await runGit(repoDir, ["add", "--", ...paths]);
-  if (!added.ok) return { committed: false, warning: `Git add 失败：${added.output.trim()}` };
+  if (!added.ok) return { committed: false, pushed: false, warning: `Git add 失败：${added.output.trim()}` };
   const committed = await runGit(repoDir, ["commit", "-m", `fav: ${title}`, "--", ...paths]);
-  if (!committed.ok) return { committed: false, warning: `Git commit 失败：${committed.output.trim()}` };
-  return { committed: true };
+  if (!committed.ok) return { committed: false, pushed: false, warning: `Git commit 失败：${committed.output.trim()}` };
+  const pushed = await runGit(repoDir, ["push", "origin", "HEAD"]);
+  if (!pushed.ok) return { committed: true, pushed: false, warning: `Git push 失败：${pushed.output.trim()}` };
+  return { committed: true, pushed: true };
 }
 
 export async function saveFav(
@@ -439,12 +445,47 @@ export async function saveFav(
   }
 
   let committed = false;
+  let pushed = false;
   if (!noCommit) {
     const result = await commitPaths(repoDir, gitPaths, input.title, dependencies.runGit ?? defaultRunGit);
     committed = result.committed;
+    pushed = result.pushed;
     if (result.warning) warnings.push(result.warning);
   }
-  return { path: articlePath, committed, warnings };
+  return { path: articlePath, committed, pushed, warnings };
+}
+
+export async function ensureMyFavRepo(
+  repoDir: string,
+  skipPull = false,
+  dependencies: StoreDependencies = {},
+): Promise<{ cloned: boolean }> {
+  const runGit = dependencies.runGit ?? defaultRunGit;
+  if (await repoExists(repoDir)) {
+    if (!skipPull) {
+      const pulled = await runGit(repoDir, ["pull", "--ff-only"]);
+      if (!pulled.ok) throw new FavError("repo_invalid", `MyFav 同步失败：${pulled.output.trim()}`);
+    }
+    return { cloned: false };
+  }
+
+  const existed = existsSync(repoDir);
+  await mkdir(dirname(repoDir), { recursive: true });
+  const cloned = await runGit(dirname(repoDir), [
+    "clone",
+    "--origin",
+    "origin",
+    dependencies.repoRemote ?? DEFAULT_MYFAV_REMOTE,
+    repoDir,
+  ]);
+  if (!cloned.ok) {
+    if (!existed) await rm(repoDir, { recursive: true, force: true }).catch(() => {});
+    throw new FavError("repo_invalid", `MyFav 自动 clone 失败：${cloned.output.trim()}`);
+  }
+  if (!await repoExists(repoDir)) {
+    throw new FavError("repo_invalid", `clone 完成，但仓库缺少 MyFav 数据文件：${repoDir}`);
+  }
+  return { cloned: true };
 }
 
 export async function repoExists(repoDir: string): Promise<boolean> {

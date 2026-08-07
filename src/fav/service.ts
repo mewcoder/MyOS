@@ -1,5 +1,6 @@
 import { countRemoteImages, fetchFav, type FavFetchDependencies } from "./fetch.js";
 import {
+  ensureMyFavRepo,
   findDuplicate,
   readCollections,
   repoExists,
@@ -100,6 +101,9 @@ export class FavService {
     const category = normalizeCategory(input.category);
     const inputTags = normalizeTags(input.tags ?? []);
 
+    if (!input.dryRun) {
+      await ensureMyFavRepo(input.repoDir, input.noCommit ?? false, this.dependencies);
+    }
     let collections: Awaited<ReturnType<typeof readCollections>> | undefined;
     const hasRepo = await repoExists(input.repoDir);
     if (!input.dryRun || hasRepo) {
@@ -174,6 +178,7 @@ export class FavService {
       ...base,
       ...(stored.path ? { path: stored.path } : {}),
       committed: stored.committed,
+      pushed: stored.pushed,
       ...(warnings.length ? { warnings } : {}),
     };
   }

@@ -81,6 +81,7 @@ export interface FavSavedResult extends FavResultBase {
   status: "saved";
   path?: string;
   committed: boolean;
+  pushed: boolean;
 }
 
 export interface FavDuplicateResult {

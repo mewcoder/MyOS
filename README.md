@@ -155,7 +155,7 @@ npm start
 
 ### MyFav：统一收藏
 
-`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。直接发送裸链接、发送 `$fav <链接>`、使用 `/save <链接>` 或说“收藏这个链接”都会进入同一个 Skill。Skill 会先 dry-run，再通过确定性的 CLI 写入本地 MyFav clone。v1 只 commit，不自动 push。
+`fav` Skill 覆盖网站、GitHub 仓库、X、微信公众号和独立博客文章。直接发送裸链接、发送 `$fav <链接>`、使用 `/save <链接>` 或说“收藏这个链接”都会进入同一个 Skill。Skill 会先 dry-run，再通过确定性的 CLI 写入并同步 MyFav。
 
 也可以直接使用 CLI：
 
@@ -163,15 +163,15 @@ npm start
 # 只预览：不写文件、不调用 Git
 myos fav "https://github.com/cloudflare/skills" --dry-run --json
 
-# 保存到 MYOS_FAV_DIR（默认 ~/.myos/myfav）
+# 正式保存：首次自动 clone 到 ~/.myos/myfav，随后 pull、commit、push
 myos fav "https://example.com/article" \
-  --category "技术" --tag "AI" --json
+  --category "知识" --tag "AI" --json
 
 # 隔离测试时写入但不 commit
 myos fav "https://example.com" --type site --repo-dir "/path/to/myfav" --no-commit
 ```
 
-MyFav 必须包含 `public/data/sites.json`、`repos.json` 和 `articles.json`，三个文件的顶层均为数组。文章正文保存到 `articles/YYYY-MM/`，正文不含 frontmatter，下载成功的图片跟随文章本地化保存。
+CLI 默认绑定 `https://github.com/mewcoder/myfav.git`，本地目录固定为 `~/.myos/myfav`；正常收藏无需指定仓库或目录。MyFav 必须包含 `public/data/sites.json`、`repos.json` 和 `articles.json`，三个文件的顶层均为数组。文章正文保存到 `articles/YYYY-MM/`，正文不含 frontmatter，下载成功的图片跟随文章本地化保存。
 
 ### 旧 Inbox：只读兼容
 

@@ -93,6 +93,7 @@ function humanResult(result: FavResult): string {
   lines.push(result.url, `${result.category} · ${result.tags.join(" / ") || "无标签"}`, `抓取：${result.via}`);
   if (result.status === "saved" && result.path) lines.push(`路径：${result.path}`);
   if (result.status === "saved" && !result.committed) lines.push("未创建 Git commit");
+  if (result.status === "saved" && result.pushed) lines.push("已推送到 MyFav");
   if (result.warnings?.length) lines.push(...result.warnings.map((warning) => `⚠️ ${warning}`));
   return lines.join("\n");
 }
